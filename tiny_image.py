@@ -6,7 +6,8 @@ class TinyImage:
 
     def __init__(self, width, height):
         self.im = Image.new(size=(width, height), mode="RGB")
-        # Flip image to have (0,0) bottom left
+        self.width = self.im.width
+        self.height = self.im.height
         self.draw = ImageDraw.Draw(self.im)
 
     def set(self, x,y, color):
@@ -18,3 +19,6 @@ class TinyImage:
 
         self.im = self.im.transpose(Image.FLIP_TOP_BOTTOM)
         self.im.save(fname)
+
+    def get_size(self):
+        return ()
