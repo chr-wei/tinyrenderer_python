@@ -1,6 +1,4 @@
 
-import math
-
 def line(x0, y0, x1, y1, image, color):
     """Draw a line onto an image."""
 
