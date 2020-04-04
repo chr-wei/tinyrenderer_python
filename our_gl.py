@@ -15,6 +15,7 @@ def line(x0, y0, x1, y1, image, color):
         (y1, y0, x1, x0) = (y0, y1, x0, x1)
 
     for x in range(x0, x1):
+        #ToDo: Optimize speed using non float operations
         y = y0 + (y1-y0) / (x1-x0) * (x-x0)
 
         if steep_line:
