@@ -1,8 +1,18 @@
+import sys
+
 from tiny_image import TinyImage
 from our_gl import triangle, line
 from model import get_model_face_ids, get_vertices
 
 if __name__ == "__main__":
+
+    if len(sys.argv) != 3:
+        print("Please pass .obj filepath and output img filepath.")
+        sys.exit(1)
+    else:
+        obj_filename = sys.argv[1]
+        output_filename = sys.argv[2]
+
     image = TinyImage(3200, 1800)
     
     #Excercises
@@ -12,10 +22,10 @@ if __name__ == "__main__":
     #image = triangle((3,5), (20,100), (110,50), image, "white")##4
     
     print("Reading facedata ...")
-    face_id_data = get_model_face_ids("obj/spring_autumn.obj")
+    face_id_data = get_model_face_ids(obj_filename)
 
     print("Reading vertices ...")
-    vertices, bounding_box = get_vertices("obj/spring_autumn.obj")
+    vertices, bounding_box = get_vertices(obj_filename)
 
     x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
     y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
@@ -42,6 +52,5 @@ if __name__ == "__main__":
         y2 = int((v2.y-y_shift)*scale + image.height / 2)
         
         image = triangle((x0, y0), (x1, y1), (x2, y2), image, "white")
-        #print(id + " of " + str(len(face_id_data)) + " written.")
         
-    image.save_to_disk("out.png")
+    image.save_to_disk(output_filename)
