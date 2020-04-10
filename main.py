@@ -1,56 +1,77 @@
 import sys
 
 from tiny_image import TinyImage
-from our_gl import triangle, line
-from model import get_model_face_ids, get_vertices
+from our_gl import Point, draw_triangle, draw_line, draw_meshtriangles, draw_filled_triangle, draw_filled_meshtriangles
 
-if __name__ == "__main__":
+from model import get_model_face_ids, get_vertices 
 
-    if len(sys.argv) != 3:
-        print("Please pass .obj filepath and output img filepath.")
-        sys.exit(1)
-    else:
-        obj_filename = sys.argv[1]
-        output_filename = sys.argv[2]
 
-    image = TinyImage(3200, 1800)
-    
-    #Excercises
-    #image.set(50,30, "red") ##1
-    #image = line(0, 0, 100, 20, image, "white")##2
-    #image = our_gl.line(0, 0, 20, 100, image, "white")##3
-    #image = triangle((3,5), (20,100), (110,50), image, "white")##4
-    
+#Excercises
+#
+#
+def excercise_point():
+    image = TinyImage(100, 100)
+    image.set(50,30, "red") ##1.1
+    image.save_to_disk("out.png")
+
+def excercise_lines():
+    image = TinyImage(200, 200)
+
+    image = draw_line((0,0), (100,20), image, "white")##2.1
+    image = draw_line((40,100), (100, 29), image, "white")##2.2
+    # image = draw_line((0,0), (image.width-1,image.height-1), image, "white")##2.3
+    image.save_to_disk("out.png")
+
+def excercise_triangles():
+    image = TinyImage(200, 200)
+    image = draw_triangle((3,5), (20,100), (110,50), image, "white")##3.1
+    image.save_to_disk("out.png")
+
+def excercise_mesh(obj_filename, output_filename):
+    image = TinyImage(2000, 2000)
+        
     print("Reading facedata ...")
     face_id_data = get_model_face_ids(obj_filename)
 
     print("Reading vertices ...")
     vertices, bounding_box = get_vertices(obj_filename)
 
-    x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
-    y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
+    draw_meshtriangles(face_id_data, vertices, bounding_box, image, "white")##6
 
-    x_scale = image.width / (bounding_box.x_max - bounding_box.x_min)
-    y_scale = image.height / (bounding_box.y_max - bounding_box.y_min)
-
-    scale = min(x_scale, y_scale) * .8
-
-    print("Drawing " + str(len(face_id_data)) + " triangles ...")
-    for id, face in face_id_data.items():
-        vert_ids = face.Vertex_Ids
-        v0 = vertices[vert_ids.id_one]
-        v1 = vertices[vert_ids.id_two]
-        v2 = vertices[vert_ids.id_three]
-
-        x0 = int((v0.x-x_shift)*scale + image.width /2)
-        y0 = int((v0.y-y_shift)*scale + image.height / 2)
-
-        x1 = int((v1.x-x_shift)*scale + image.width /2)
-        y1 = int((v1.y-y_shift)*scale + image.height / 2)
-
-        x2 = int((v2.x-x_shift)*scale + image.width /2)
-        y2 = int((v2.y-y_shift)*scale + image.height / 2)
-        
-        image = triangle((x0, y0), (x1, y1), (x2, y2), image, "white")
-        
     image.save_to_disk(output_filename)
+        
+def excercise_filled_triangles():
+    image = TinyImage(300, 300)
+    p1 = Point(100, 5)
+    p2 = Point(100, 150)
+    p3 = Point(200, 50)
+
+    image = draw_filled_triangle(p1, p2, p3, image, "white")##5.1
+    image = draw_triangle(p1, p2, p3, image, "red")##5.1
+
+    # p4 = Point(20, 240)##5.2
+    # p5 = Point(180, 199)##5.2
+    # image = draw_filled_triangle(p2, p4, p5, image, "white")##5.2
+
+def excercise_filled_mesh(obj_filename, output_filename):
+    image = TinyImage(2000, 2000)
+        
+    print("Reading facedata ...")
+    face_id_data = get_model_face_ids(obj_filename)
+
+    print("Reading vertices ...")
+    vertices, bounding_box = get_vertices(obj_filename)
+
+    draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image)
+
+    image.save_to_disk(output_filename)
+
+
+if __name__ == "__main__":
+
+    # excercise_point()##1
+    # excercise_lines()##2
+    # excercise_triangles()##3
+    # excercise_mesh("obj/autumn.obj", "autumn.png")##4
+    # excercise_filled_triangles()##5
+    excercise_filled_mesh("obj/spring_autumn.obj", "spring_autumn.png")##6
