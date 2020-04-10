@@ -1,15 +1,7 @@
 import re
 import sys
-from collections import namedtuple
 
-Facedata_Ids = namedtuple("Facedata_Ids", "Vertex_Ids Tangent_Ids Normal_Ids")
-Vertex_Ids = namedtuple("Vertex_Ids", "id_one id_two id_three")
-Tangent_Ids = namedtuple("Tangent_Ids", "id_one id_two id_three")
-Normal_Ids = namedtuple("Normal_Ids", "id_one id_two id_three")
-
-Vertex = namedtuple("Vertex", "x y z")
-BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
-
+from our_gl import  Vertex, BoundingBox, VertexIds, TangentIds, NormalIds, FacedataIds
 
 def get_model_face_ids(obj_filename):
 
@@ -45,11 +37,11 @@ def read_face_ids(face_data_line):
         tang_list.append(tang)
         norm_list.append(int(match[idx][2]))
 
-    vert_ids = Vertex_Ids(*vert_list[:3])
-    tang_ids = Tangent_Ids(*tang_list[:3])
-    norm_ids = Normal_Ids(*norm_list[:3])
+    vert_ids = VertexIds(*vert_list[:3])
+    tang_ids = TangentIds(*tang_list[:3])
+    norm_ids = NormalIds(*norm_list[:3])
 
-    return Facedata_Ids(vert_ids, tang_ids, norm_ids)
+    return FacedataIds(vert_ids, tang_ids, norm_ids)
 
 
 def get_vertices(obj_filename):
