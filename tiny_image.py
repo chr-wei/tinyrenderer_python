@@ -5,22 +5,23 @@ class TinyImage:
     """Get a new image canvas to draw on."""
 
     def __init__(self, width, height):
-        self.__im = Image.new(size=(width, height), mode="RGB")
-        self.width = self.__im.width
-        self.height = self.__im.height
+        self._im = Image.new(size=(width, height), mode="RGB")
+        self._draw = ImageDraw.Draw(self._im)
+        self.width = self._im.width
+        self.height = self._im.height
 
     def set(self, x,y, color):
         """Draw a point onto the image."""
-        ImageDraw.Draw(self.__im).point((x,y), fill=color)
+        self._draw.point((x,y), fill=color)
 
     def save_to_disk(self, fname):
         """Save your image to a given filename."""
 
-        self.__im = self.__im.transpose(Image.FLIP_TOP_BOTTOM)
-        self.__im.save(fname)
+        self._im = self._im.transpose(Image.FLIP_TOP_BOTTOM)
+        self._im.save(fname)
     
     def get_width(self):
-        return self.__im.width
+        return self._im.width
 
     def get_height(self):
-        return self.__im.height
+        return self._im.height
