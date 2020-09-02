@@ -2,7 +2,8 @@ from collections import namedtuple
 from operator import attrgetter
 from tiny_image import TinyImage
 import random
-
+import numpy
+import PIL
 # Tuple definitions
 
 Point = namedtuple ("Point", "x y")
@@ -14,10 +15,10 @@ FacedataIds = namedtuple("FacedataIds", "VertexIds TangentIds NormalIds")
 
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
-
+light_dir = Vertex(0, 0, -1)
 
 def draw_line(p0, p1, image, color):
-    """Draw a line onto an image."""
+    """Draw p0 line onto an image."""
 
     (x0, y0) = p0
     (x1, y1) = p1
@@ -32,7 +33,7 @@ def draw_line(p0, p1, image, color):
 
     if x0 == x1:
         # Due to switching steep lines this only occurs if y0 == y1 and x0 == x1
-        # Only draw a dot in this case
+        # Only draw p0 dot in this case
         image.set(x0, y0, color)
         return image
 
@@ -41,7 +42,7 @@ def draw_line(p0, p1, image, color):
 
     for x in range(x0, x1+1):
         #ToDo: Optimize speed using non float operations
-        y = y0 + (y1-y0) / (x1-x0) * (x-x0) + .5
+        y = int(y0 + (y1-y0) / (x1-x0) * (x-x0) + .5)
 
         if steep_line:
             image.set(y, x, color)
@@ -59,6 +60,11 @@ def draw_triangle(p0, p1, p2, image, color):
     return image
 
     
+def draw_ref_triangle(p0, p1, p2, image, color):
+    image._draw.line((p0.x, p0.y, p1.x, p1.y), fill = color)
+    image._draw.line((p0.x, p0.y, p2.x, p2.y), fill = color)
+    image._draw.line((p1.x, p1.y, p2.x, p2.y), fill = color)
+    return image
 
 def draw_meshtriangles(face_id_data, vertices, bounding_box, image, color):
 
@@ -120,14 +126,17 @@ def draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image):
         y2 = int((v2.y-y_shift)*scale + image.get_height() / 2)
 
         colors = ["cyan", "gray", "lightblue", "orange", "purple"]
-        image = draw_filled_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, 
-            random.choice(colors))
+        # image = draw_filled_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, 
+        #    random.choice(colors))##5
+        image = draw_rasterized_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, 
+            random.choice(colors))##7
     return image
 
 
 
 def draw_filled_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, color):
-    # image = triangle(p0,p1,p2, image, color)
+    image = draw_triangle(p0,p1,p2, image, color)
+    
     sorted_points = [p0, p1, p2]
     sorted_points.sort(key=attrgetter('x'))
 
@@ -140,7 +149,7 @@ def draw_filled_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, colo
     x1_main = edge_main[1].x
     y1_main = edge_main[1].y
 
-    for x_sweep in range(x0_main, x1_main + 1):
+    for x_sweep in range(x0_main + 1, x1_main):
         if x_sweep < edge_left[1].x:
             x0_minor = edge_left[0].x
             y0_minor = edge_left[0].y
@@ -166,7 +175,90 @@ def draw_filled_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, colo
             # Make y_main greater than y_minor
             (y_main, y_minor) = (y_minor, y_main)
         
-        for y in range(y_minor, y_main + 1):
+        for y in range(y_minor+1, y_main):
             image.set(x_sweep, y, color)
 
+    return image
+
+def draw_rasterized_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, color):
+    points = [p0, p1, p2]
+
+    points.sort(key=attrgetter('x'))
+    x_min = points[0].x
+    x_max = points[2].x
+
+    points.sort(key=attrgetter('y'))
+    y_min = points[0].y
+    y_max = points[2].y
+
+    for x in range(x_min, x_max+1):
+        for y in range(y_min, y_max+1):
+            (one_uv, u, v) = barycentric(p0, p1, p2, Point(x,y))
+            if one_uv >= 0 and u >= 0 and v >= 0:
+                image.set(x, y, color)
+                # Error: Problem with pixels lying on the edge of the triangle - too less triangles drawn
+    return image
+
+
+def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
+    (u, v, r) = cross_product(Vertex(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vertex(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
+    
+    if r == 0:
+        # Triangle is degenerated
+        return (-1,-1,-1)
+    else:
+        # Component r should be 1: Normalize components 
+        return (1-(u+v)/r, u/r, v/r)
+
+def cross_product(v0:Vertex, v1:Vertex):
+    c0 = v0.y*v1.z - v0.z*v1.y
+    c1 = v0.z*v1.x - v0.x*v1.z
+    c2 = v0.x*v1.y - v0.y*v1.x
+    return Vertex(c0, c1, c2)
+
+def normalize(v0:Vertex):
+    length = (v0.x**2 + v0.y**2 + v0.z**2)**(1/2)
+    return Vertex(*numpy.multiply(v0, 1/length))
+
+def scalar(v0:Vertex, v1:Vertex):
+    return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z
+
+def draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image):
+
+    x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
+    y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
+
+    x_scale = image.width / (bounding_box.x_max - bounding_box.x_min)
+    y_scale = image.height / (bounding_box.y_max - bounding_box.y_min)
+
+    scale = min(x_scale, y_scale) * .8
+
+    print("Drawing " + str(len(face_id_data)) + " triangles ...")
+    
+    for face in face_id_data.values():
+        vert_ids = face.VertexIds
+        v0 = vertices[vert_ids.id_one]
+        v1 = vertices[vert_ids.id_two]
+        v2 = vertices[vert_ids.id_three]
+
+        
+        # Calculating color shading
+        n = cross_product(Vertex(*numpy.subtract(v0, v1)) , Vertex(*numpy.subtract(v2, v0)))
+        cos_phi = scalar(normalize(n), normalize(light_dir))
+        if cos_phi < 0:
+            continue
+
+        color = int(255 * cos_phi)
+        color = (color, color, color)
+
+        x0 = int((v0.x-x_shift)*scale + image.get_width() /2)
+        y0 = int((v0.y-y_shift)*scale + image.get_height() / 2)
+
+        x1 = int((v1.x-x_shift)*scale + image.get_width() /2)
+        y1 = int((v1.y-y_shift)*scale + image.height / 2)
+
+        x2 = int((v2.x-x_shift)*scale + image.get_width() /2)
+        y2 = int((v2.y-y_shift)*scale + image.get_height() / 2)
+  
+        image = draw_rasterized_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, color)##8
     return image
