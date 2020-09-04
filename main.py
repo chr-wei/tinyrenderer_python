@@ -3,9 +3,10 @@ import sys
 from tiny_image import TinyImage
 from our_gl import (Point, Vertex, cross_product, 
                     draw_triangle, draw_line, draw_meshtriangles, draw_ref_triangle, 
-                    draw_filled_triangle, draw_filled_meshtriangles, draw_rasterized_triangle, draw_flat_shaded_meshtriangles)
+                    draw_filled_triangle, draw_filled_meshtriangles, draw_rasterized_triangle, draw_flat_shaded_meshtriangles, 
+                    draw_textured_mesh)
 
-from model import get_model_face_ids, get_vertices
+from model import get_model_face_ids, get_vertices, get_model_texture_points
 
 #Excercises
 #
@@ -74,6 +75,22 @@ def excercise_filled_mesh(obj_filename, output_filename):
 
     image.save_to_disk(output_filename)
 
+def excercise_textured_mesh(obj_filename, texture_filename, output_filename):
+    """Draw a filled mesh with random facet colors"""
+    image = TinyImage(2000, 2000)
+        
+    print("Reading facedata ...")
+    face_id_data = get_model_face_ids(obj_filename)
+
+    print("Reading vertices ...")
+    vertices, bounding_box = get_vertices(obj_filename)
+
+    print("Reading texture coordinates ...")
+    texture_points = get_model_texture_points(obj_filename)
+    draw_textured_mesh(face_id_data, vertices, bounding_box, texture_points, texture_filename, image)
+
+    image.save_to_disk(output_filename)
+
 def excercise_rasterized_triangle():
     """Draw a simple filled triangle using rasterization"""
     # import numpy##7.1
@@ -117,4 +134,5 @@ if __name__ == "__main__":
     # excercise_filled_mesh("obj/spring_autumn.obj", "spring_autumn.png")##6.1
     # excercise_filled_mesh("obj/autumn.obj", "autumn.png")##6.2
     # excercise_rasterized_triangle()##7
-    excercise_flat_shaded_mesh("obj/head.obj", "out.png")##8.1 and 8.2
+    # excercise_flat_shaded_mesh("obj/autumn.obj", "autumn.png")##8.1 and 8.2
+    excercise_textured_mesh("obj/head.obj", "obj/african_head_diffuse.tga", "out.png")
