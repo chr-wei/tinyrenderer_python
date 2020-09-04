@@ -200,6 +200,30 @@ def draw_rasterized_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, 
     return image
 
 
+
+def draw_zbuffered_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list, image: TinyImage, color):
+    points = [v0, v1, v2]
+
+    points.sort(key=attrgetter('x'))
+    x_min = points[0].x
+    x_max = points[2].x
+
+    points.sort(key=attrgetter('y'))
+    y_min = points[0].y
+    y_max = points[2].y
+
+    for x in range(x_min, x_max+1):
+        for y in range(y_min, y_max+1):
+            (one_uv, u, v) = barycentric(Point(v0.x, v0.y), Point(v1.x, v1.y), Point(v2.x, v2.y), Point(x,y))
+            if one_uv >= 0 and u >= 0 and v >= 0:
+                z = one_uv*v0.z + u * v1.z + v * v2.z
+                if z > zbuffer[x][y]:
+                    zbuffer[x][y] = z
+                    image.set(x, y, color)
+                    # Error: Problem with pixels lying on the edge of the triangle - too less triangles drawn
+    return image
+
+
 def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
     (u, v, r) = cross_product(Vertex(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vertex(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
     
@@ -235,30 +259,34 @@ def draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image):
 
     print("Drawing " + str(len(face_id_data)) + " triangles ...")
     
+    w, h = image.get_width(), image.get_height()
+    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)] #8.2 
+
     for face in face_id_data.values():
         vert_ids = face.VertexIds
         v0 = vertices[vert_ids.id_one]
         v1 = vertices[vert_ids.id_two]
         v2 = vertices[vert_ids.id_three]
-
         
         # Calculating color shading
         n = cross_product(Vertex(*numpy.subtract(v0, v1)) , Vertex(*numpy.subtract(v2, v0)))
         cos_phi = scalar(normalize(n), normalize(light_dir))
+
         if cos_phi < 0:
             continue
-
+        
         color = int(255 * cos_phi)
         color = (color, color, color)
 
-        x0 = int((v0.x-x_shift)*scale + image.get_width() /2)
-        y0 = int((v0.y-y_shift)*scale + image.get_height() / 2)
+        x0 = int((v0.x-x_shift)*scale + w /2)
+        y0 = int((v0.y-y_shift)*scale + h / 2)
 
-        x1 = int((v1.x-x_shift)*scale + image.get_width() /2)
-        y1 = int((v1.y-y_shift)*scale + image.height / 2)
+        x1 = int((v1.x-x_shift)*scale + w /2)
+        y1 = int((v1.y-y_shift)*scale + h / 2)
 
-        x2 = int((v2.x-x_shift)*scale + image.get_width() /2)
-        y2 = int((v2.y-y_shift)*scale + image.get_height() / 2)
-  
-        image = draw_rasterized_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, color)##8
+        x2 = int((v2.x-x_shift)*scale + w / 2)
+        y2 = int((v2.y-y_shift)*scale + h / 2)
+
+        # image = draw_rasterized_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, color)##8.1
+        image = draw_zbuffered_triangle(Vertex(x0, y0, v0.z),  Vertex(x1, y1, v1.z), Vertex(x2, y2, v2.z), zbuffer, image, color)##8.2
     return image

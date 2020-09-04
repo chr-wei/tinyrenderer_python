@@ -11,11 +11,13 @@ from model import get_model_face_ids, get_vertices
 #
 #
 def excercise_point():
+    """Draw a simple point"""
     image = TinyImage(100, 100)
     image.set(50,30, "red") ##1.1
     image.save_to_disk("out.png")
 
 def excercise_lines():
+    """Draw a simple line"""
     image = TinyImage(200, 200)
 
     image = draw_line((0,0), (100,20), image, "white")##2.1
@@ -24,11 +26,13 @@ def excercise_lines():
     image.save_to_disk("out.png")
 
 def excercise_triangles():
+    """Draw triangle edges"""
     image = TinyImage(200, 200)
     image = draw_triangle((3,5), (20,100), (110,50), image, "white")##3.1
     image.save_to_disk("out.png")
 
 def excercise_mesh(obj_filename, output_filename):
+    """Draw mesh unfilled mesh triangles"""
     image = TinyImage(2000, 2000)
         
     print("Reading facedata ...")
@@ -42,6 +46,7 @@ def excercise_mesh(obj_filename, output_filename):
     image.save_to_disk(output_filename)
         
 def excercise_filled_triangles():
+    """Draw some simple filled triangles"""
     image = TinyImage(300, 300)
     p1 = Point(100, 5)
     p2 = Point(100, 150)
@@ -56,6 +61,7 @@ def excercise_filled_triangles():
     image.save_to_disk("out.png")
 
 def excercise_filled_mesh(obj_filename, output_filename):
+    """Draw a filled mesh with random facet colors"""
     image = TinyImage(2000, 2000)
         
     print("Reading facedata ...")
@@ -69,6 +75,7 @@ def excercise_filled_mesh(obj_filename, output_filename):
     image.save_to_disk(output_filename)
 
 def excercise_rasterized_triangle():
+    """Draw a simple filled triangle using rasterization"""
     # import numpy##7.1
     # Test cross product
     # v1 = Vertex(1,2,3)##7.1
@@ -87,6 +94,7 @@ def excercise_rasterized_triangle():
     image.save_to_disk("out.png")
 
 def excercise_flat_shaded_mesh(obj_filename, output_filename):
+    """Draw a mesh with flat shading: Grey shaded triangles depending on angle between surface normal and light direction"""
     image = TinyImage(2000, 2000)
         
     print("Reading facedata ...")
@@ -106,7 +114,7 @@ if __name__ == "__main__":
     # excercise_triangles()##3
     # excercise_mesh("obj/autumn.obj", "autumn.png")##4
     # excercise_filled_triangles()##5
-    # excercise_filled_mesh("obj/spring_autumn.obj", "spring_autumn.png")##6
+    # excercise_filled_mesh("obj/spring_autumn.obj", "spring_autumn.png")##6.1
+    # excercise_filled_mesh("obj/autumn.obj", "autumn.png")##6.2
     # excercise_rasterized_triangle()##7
-    excercise_filled_mesh("obj/autumn.obj", "autumn.png")##7
-    # excercise_flat_shaded_mesh("obj/autumn.obj", "autumn.png")##8
+    excercise_flat_shaded_mesh("obj/head.obj", "out.png")##8.1 and 8.2
