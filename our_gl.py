@@ -4,7 +4,7 @@ from tiny_image import TinyImage
 from model import get_texture_color
 
 import random
-import numpy
+import numpy as np
 import PIL
 
 # Tuple definitions
@@ -13,7 +13,7 @@ Vertex = namedtuple("Vertex", "x y z")
 
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
-light_dir = Vertex(0, 0, -1)
+light_dir = Vertex(-1, -1, -1)
 
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
@@ -48,8 +48,6 @@ def draw_line(p0, p1, image, color):
             image.set(x, y, color)
 
     return image
-
-
 
 def draw_triangle(p0, p1, p2, image, color):
     image = draw_line(p0, p1, image, color)
@@ -94,8 +92,6 @@ def draw_meshtriangles(face_id_data, vertices, bounding_box, image, color):
         image = draw_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, color)
     return image
 
-
-
 def draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image):
 
     x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
@@ -129,8 +125,6 @@ def draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image):
         image = draw_rasterized_triangle(Point(x0, y0), Point(x1, y1), Point(x2, y2), image, 
             random.choice(colors))##7
     return image
-
-
 
 def draw_filled_triangle(p0: Point, p1: Point, p2: Point, image: TinyImage, color):
     image = draw_triangle(p0,p1,p2, image, color)
@@ -235,17 +229,16 @@ def draw_textured_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list,
             (one_uv, u, v) = barycentric(Point(v0.x, v0.y), Point(v1.x, v1.y), Point(v2.x, v2.y), Point(x,y))
             if one_uv >= 0 and u >= 0 and v >= 0:
                 z = one_uv*v0.z + u * v1.z + v * v2.z
-                p_texture = one_uv*p0 + u * p1 + v *p2
-
+                p_texture = Point(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
+            
                 if z > zbuffer[x][y]:
                     zbuffer[x][y] = z
 
                     # Get texture color
                     color = get_texture_color(texture_image, p_texture.x, p_texture.y)
-
+                    color = tuple(int(elem) for elem in np.multiply(color, shading_factor))
                     image.set(x, y, color)
     return image
-
 
 def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
     (u, v, r) = cross_product(Vertex(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vertex(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
@@ -265,7 +258,7 @@ def cross_product(v0:Vertex, v1:Vertex):
 
 def normalize(v0:Vertex):
     length = (v0.x**2 + v0.y**2 + v0.z**2)**(1/2)
-    return Vertex(*numpy.multiply(v0, 1/length))
+    return Vertex(*np.multiply(v0, 1/length))
 
 def scalar(v0:Vertex, v1:Vertex):
     return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z
@@ -292,7 +285,7 @@ def draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image):
         v2 = vertices[vert_ids.id_three]
         
         # Calculating color shading
-        n = cross_product(Vertex(*numpy.subtract(v0, v1)) , Vertex(*numpy.subtract(v2, v0)))
+        n = cross_product(Vertex(*np.subtract(v0, v1)) , Vertex(*np.subtract(v2, v0)))
         cos_phi = scalar(normalize(n), normalize(light_dir))
 
         if cos_phi < 0:
@@ -314,8 +307,9 @@ def draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image):
         image = draw_zbuffered_triangle(Vertex(x0, y0, v0.z),  Vertex(x1, y1, v1.z), Vertex(x2, y2, v2.z), zbuffer, image, color)##8.2
     return image
 
-
-def draw_textured_mesh(face_id_data, vertices, bounding_box, texture_points, texture_image, image):
+def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : BoundingBox, 
+                       texture_points : dict, texture_image : TinyImage, 
+                       image : TinyImage):
 
     x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
     y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
@@ -342,7 +336,7 @@ def draw_textured_mesh(face_id_data, vertices, bounding_box, texture_points, tex
         p2 = texture_points[texture_pt_ids.id_three]
         
         # Calculating color shading
-        n = cross_product(Vertex(*numpy.subtract(v0, v1)) , Vertex(*numpy.subtract(v2, v0)))
+        n = cross_product(Vertex(*np.subtract(v0, v1)) , Vertex(*np.subtract(v2, v0)))
         cos_phi = scalar(normalize(n), normalize(light_dir))
 
         if cos_phi < 0:

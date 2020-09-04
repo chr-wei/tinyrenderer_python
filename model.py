@@ -1,7 +1,7 @@
 import re
 import sys
 
-from our_gl import Point, Vertex, BoundingBox
+import our_gl as gl
 from collections import namedtuple
 from tiny_image import TinyImage
 
@@ -68,7 +68,7 @@ def read_texture_points(texture_data_line):
     vertex_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
     match = re.findall(vertex_elem_pattern, texture_data_line)
 
-    return Point(float(match[0]), float(match[1])) # match[2] is not read
+    return gl.Point(float(match[0]), float(match[1])) # match[2] is not read
 
 def get_vertices(obj_filename):
     vertex_dict = {}
@@ -94,7 +94,7 @@ def get_vertices(obj_filename):
                     for elem in match:
                         elem_list.append(float(elem))
 
-                    vert = Vertex(*elem_list)
+                    vert = gl.Vertex(*elem_list)
 
                     x_min = min(vert.x, x_min)
                     y_min = min(vert.y, y_min)
@@ -107,9 +107,9 @@ def get_vertices(obj_filename):
                     vertex_count = len(vertex_dict)
                     vertex_dict[vertex_count + 1] = vert
     
-    bounding_box = BoundingBox(x_min, y_min, z_min, x_max, y_max, z_max)
+    bounding_box = gl.BoundingBox(x_min, y_min, z_min, x_max, y_max, z_max)
 
     return vertex_dict, bounding_box
 
-def get_texture_color(texture : TinyImage, rel_x : float, rel_y : float):
-    return (0, 0, 0)
+def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
+    return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())

@@ -1,10 +1,7 @@
 import sys
 
 from tiny_image import TinyImage
-from our_gl import (Point, Vertex, cross_product, 
-                    draw_triangle, draw_line, draw_meshtriangles, draw_ref_triangle, 
-                    draw_filled_triangle, draw_filled_meshtriangles, draw_rasterized_triangle, draw_flat_shaded_meshtriangles, 
-                    draw_textured_mesh)
+import our_gl as gl
 
 from model import get_model_face_ids, get_vertices, get_model_texture_points
 
@@ -21,15 +18,15 @@ def excercise_lines():
     """Draw a simple line"""
     image = TinyImage(200, 200)
 
-    image = draw_line((0,0), (100,20), image, "white")##2.1
-    image = draw_line((40,100), (100, 29), image, "white")##2.2
+    image = gl.draw_line((0,0), (100,20), image, "white")##2.1
+    image = gl.draw_line((40,100), (100, 29), image, "white")##2.2
     # image = draw_line((0,0), (image.width-1,image.height-1), image, "white")##2.3
     image.save_to_disk("out.png")
 
 def excercise_triangles():
     """Draw triangle edges"""
     image = TinyImage(200, 200)
-    image = draw_triangle((3,5), (20,100), (110,50), image, "white")##3.1
+    image = gl.draw_triangle((3,5), (20,100), (110,50), image, "white")##3.1
     image.save_to_disk("out.png")
 
 def excercise_mesh(obj_filename, output_filename):
@@ -42,19 +39,19 @@ def excercise_mesh(obj_filename, output_filename):
     print("Reading vertices ...")
     vertices, bounding_box = get_vertices(obj_filename)
 
-    draw_meshtriangles(face_id_data, vertices, bounding_box, image, "white")##6
+    gl.draw_meshtriangles(face_id_data, vertices, bounding_box, image, "white")##6
 
     image.save_to_disk(output_filename)
         
 def excercise_filled_triangles():
     """Draw some simple filled triangles"""
     image = TinyImage(300, 300)
-    p1 = Point(100, 5)
-    p2 = Point(100, 150)
-    p3 = Point(200, 50)
+    p1 = gl.Point(100, 5)
+    p2 = gl.Point(100, 150)
+    p3 = gl.Point(200, 50)
 
-    image = draw_filled_triangle(p1, p2, p3, image, "white")##5.1
-    image = draw_triangle(p1, p2, p3, image, "red")##5.1
+    image = gl.draw_filled_triangle(p1, p2, p3, image, "white")##5.1
+    image = gl.draw_triangle(p1, p2, p3, image, "red")##5.1
 
     # p4 = Point(20, 240)##5.2
     # p5 = Point(180, 199)##5.2
@@ -71,14 +68,16 @@ def excercise_filled_mesh(obj_filename, output_filename):
     print("Reading vertices ...")
     vertices, bounding_box = get_vertices(obj_filename)
 
-    draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image)
+    gl.draw_filled_meshtriangles(face_id_data, vertices, bounding_box, image)
 
     image.save_to_disk(output_filename)
 
 def excercise_textured_mesh(obj_filename, texture_filename, output_filename):
     """Draw a filled mesh with random facet colors"""
     image = TinyImage(2000, 2000)
-        
+    texture_image = TinyImage()
+    texture_image.load_image(texture_filename)
+      
     print("Reading facedata ...")
     face_id_data = get_model_face_ids(obj_filename)
 
@@ -87,7 +86,7 @@ def excercise_textured_mesh(obj_filename, texture_filename, output_filename):
 
     print("Reading texture coordinates ...")
     texture_points = get_model_texture_points(obj_filename)
-    draw_textured_mesh(face_id_data, vertices, bounding_box, texture_points, texture_filename, image)
+    gl.draw_textured_mesh(face_id_data, vertices, bounding_box, texture_points, texture_image, image)
 
     image.save_to_disk(output_filename)
 
@@ -101,13 +100,13 @@ def excercise_rasterized_triangle():
     # print(numpy.cross(v1,v2))##7.1
 
     image = TinyImage(300, 300)
-    p0 = Point(50, 5)
-    p1 = Point(200, 10)
-    p2 = Point(100,  250)
+    p0 = gl.Point(50, 5)
+    p1 = gl.Point(200, 10)
+    p2 = gl.Point(100,  250)
 
 
-    image = draw_ref_triangle(p0, p1, p2, image, "red")#7.2
-    image = draw_rasterized_triangle(p0, p1, p2, image, "white")#7.2
+    image = gl.draw_ref_triangle(p0, p1, p2, image, "red")#7.2
+    image = gl.draw_rasterized_triangle(p0, p1, p2, image, "white")#7.2
     image.save_to_disk("out.png")
 
 def excercise_flat_shaded_mesh(obj_filename, output_filename):
@@ -120,7 +119,7 @@ def excercise_flat_shaded_mesh(obj_filename, output_filename):
     print("Reading vertices ...")
     vertices, bounding_box = get_vertices(obj_filename)
 
-    draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image)
+    gl.draw_flat_shaded_meshtriangles(face_id_data, vertices, bounding_box, image)
 
     image.save_to_disk(output_filename)
 
