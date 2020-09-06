@@ -2,6 +2,7 @@ from collections import namedtuple
 from operator import attrgetter
 from tiny_image import TinyImage
 from model import get_texture_color
+from numpy import array
 
 import random
 import numpy as np
@@ -13,7 +14,15 @@ Vertex = namedtuple("Vertex", "x y z")
 
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
-light_dir = Vertex(-1, -1, -1)
+light_dir = Vertex(0, 0, -1)
+c = 4
+
+M_perspective = array([
+                      [1, 0, 0,    0],
+                      [0, 1, 0,    0],
+                      [0, 0, 1,    0],
+                      [0, 0, -1/c, 1],
+                      ])
 
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
@@ -229,13 +238,17 @@ def draw_textured_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list,
             (one_uv, u, v) = barycentric(Point(v0.x, v0.y), Point(v1.x, v1.y), Point(v2.x, v2.y), Point(x,y))
             if one_uv >= 0 and u >= 0 and v >= 0:
                 z = one_uv*v0.z + u * v1.z + v * v2.z
-                p_texture = Point(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
             
                 if z > zbuffer[x][y]:
                     zbuffer[x][y] = z
 
-                    # Get texture color
-                    color = get_texture_color(texture_image, p_texture.x, p_texture.y)
+                    if None in [p0, p1, p2, texture_image]:
+                        color = (255, 255, 255)
+                    else:
+                        # Get texture color
+                        p_texture = Point(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
+                        color = get_texture_color(texture_image, p_texture.x, p_texture.y)
+                    
                     color = tuple(int(elem) for elem in np.multiply(color, shading_factor))
                     image.set(x, y, color)
     return image
@@ -330,10 +343,19 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
         v1 = vertices[vert_ids.id_two]
         v2 = vertices[vert_ids.id_three]
 
-        texture_pt_ids = face.TexturePointIds
-        p0 = texture_points[texture_pt_ids.id_one]
-        p1 = texture_points[texture_pt_ids.id_two]
-        p2 = texture_points[texture_pt_ids.id_three]
+        v0 = transform_vertex(v0)
+        v1 = transform_vertex(v1)
+        v2 = transform_vertex(v2)
+
+        if not texture_image is None:
+            texture_pt_ids = face.TexturePointIds
+            p0 = texture_points[texture_pt_ids.id_one]
+            p1 = texture_points[texture_pt_ids.id_two]
+            p2 = texture_points[texture_pt_ids.id_three]
+        else:
+            p0 = None
+            p1 = None
+            p2 = None
         
         # Calculating color shading
         n = cross_product(Vertex(*np.subtract(v0, v1)) , Vertex(*np.subtract(v2, v0)))
@@ -341,10 +363,8 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
 
         if cos_phi < 0:
             continue
-        
-        color = int(255 * cos_phi)
-        color = (color, color, color)
 
+        # Calculate screen coords
         x0 = int((v0.x-x_shift)*scale + w /2)
         y0 = int((v0.y-y_shift)*scale + h / 2)
 
@@ -355,6 +375,12 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
         y2 = int((v2.y-y_shift)*scale + h / 2)
 
         image = draw_textured_triangle(Vertex(x0, y0, v0.z),  Vertex(x1, y1, v1.z), Vertex(x2, y2, v2.z), zbuffer,
-                                       Point(p0.x, p0.y), Point(p1.x, p1.y), Point(p2.x, p2.y), texture_image, cos_phi, 
+                                       p0, p1, p2, texture_image, cos_phi, 
                                        image)
     return image
+
+def transform_vertex(v : Vertex):
+    v = array([v.x, v.y, v.z, 1])
+    v = M_perspective.dot(v)
+    v = v / v[3]
+    return Vertex(v[0], v[1], v[2])

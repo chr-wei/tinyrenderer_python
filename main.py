@@ -75,8 +75,12 @@ def excercise_filled_mesh(obj_filename, output_filename):
 def excercise_textured_mesh(obj_filename, texture_filename, output_filename):
     """Draw a filled mesh with random facet colors"""
     image = TinyImage(2000, 2000)
-    texture_image = TinyImage()
-    texture_image.load_image(texture_filename)
+
+    if texture_filename is None:
+        texture_image = None
+    else:
+        texture_image = TinyImage()
+        texture_image.load_image(texture_filename)
       
     print("Reading facedata ...")
     face_id_data = get_model_face_ids(obj_filename)
@@ -134,4 +138,5 @@ if __name__ == "__main__":
     # excercise_filled_mesh("obj/autumn.obj", "autumn.png")##6.2
     # excercise_rasterized_triangle()##7
     # excercise_flat_shaded_mesh("obj/autumn.obj", "autumn.png")##8.1 and 8.2
-    excercise_textured_mesh("obj/head.obj", "obj/african_head_diffuse.tga", "out.png")
+    # excercise_textured_mesh("obj/head.obj", "obj/african_head_diffuse.tga", "out.png")##9.1 and 9.2
+    excercise_textured_mesh("obj/autumn.obj", None, "autumn.png")##9.1 and 9.2
