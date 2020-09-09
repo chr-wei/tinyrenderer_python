@@ -1,28 +1,22 @@
-from collections import namedtuple
 from operator import attrgetter
+
+import numpy as np
+from numpy import array
+from nptyping import NDArray
+from typing import Any
+
 from tiny_image import TinyImage
 from model import get_texture_color
-from numpy import array
 
-import random
-import numpy as np
-import PIL
+light_dir = array([0, 0, -1, 0])
 
-# Tuple definitions
-Point = namedtuple ("Point", "x y")
-Vertex = namedtuple("Vertex", "x y z")
-
-BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
-
-light_dir = Vertex(0, 0, -1)
 c = 4
-
-M_perspective = array([
-                      [1, 0, 0,    0],
-                      [0, 1, 0,    0],
-                      [0, 0, 1,    0],
-                      [0, 0, -1/c, 1],
-                      ])
+M_perspective : NDArray((4,3), Any) = array([
+                                            [1, 0, 0,    0],
+                                            [0, 1, 0,    0],
+                                            [0, 0, 1,    0],
+                                            [0, 0, -1/c, 1],
+                                            ])
 
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
@@ -63,8 +57,8 @@ def draw_triangle_lines(p0, p1, p2, image, color):
     image = draw_line(p2, p0, image, color)
     return image
 
-def draw_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list, 
-                           p0: Point, p1: Point, p2: Point, texture_image : TinyImage, shading_factor: float, 
+def draw_triangle(v0: NDArray(Any, Any), v1: NDArray(Any, Any), v2: NDArray(Any, Any), zbuffer: list, 
+                           p0: NDArray(Any, Any), p1: NDArray(Any, Any), p2: NDArray(Any, Any), texture_image : TinyImage, shading_factor: float, 
                            image: TinyImage):
     points = [v0, v1, v2]
 
