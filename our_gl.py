@@ -2,21 +2,17 @@ from operator import attrgetter
 
 import numpy as np
 from numpy import array
-from nptyping import NDArray
-from typing import Any
 
 from tiny_image import TinyImage
 from model import get_texture_color
 
-light_dir = array([0, 0, -1, 0])
+light_dir = array([0, 0, -1])
 
 c = 4
-M_perspective : NDArray((4,3), Any) = array([
-                                            [1, 0, 0,    0],
-                                            [0, 1, 0,    0],
-                                            [0, 0, 1,    0],
-                                            [0, 0, -1/c, 1],
-                                            ])
+M_perspective : array = array([[1, 0, 0,    0],
+                               [0, 1, 0,    0],
+                               [0, 0, 1,    0],
+                               [0, 0, -1/c, 1]])
 
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
@@ -57,24 +53,24 @@ def draw_triangle_lines(p0, p1, p2, image, color):
     image = draw_line(p2, p0, image, color)
     return image
 
-def draw_triangle(v0: NDArray(Any, Any), v1: NDArray(Any, Any), v2: NDArray(Any, Any), zbuffer: list, 
-                           p0: NDArray(Any, Any), p1: NDArray(Any, Any), p2: NDArray(Any, Any), texture_image : TinyImage, shading_factor: float, 
+def draw_triangle(v0: array, v1: array, v2: array, zbuffer: list, 
+                           p0: array, p1: array, p2: array, texture_image : TinyImage, shading_factor: float, 
                            image: TinyImage):
-    points = [v0, v1, v2]
+                           
+    points = np.column_stack((v0, v1, v2))
+    max_vals = points.max(axis = 1)
+    min_vals = points.min(axis = 1)
 
-    points.sort(key=attrgetter('x'))
-    x_min = points[0].x
-    x_max = points[2].x
+    x_min = min_vals[0]
+    x_max = max_vals[0]
+    y_min = min_vals[1]
+    y_max = max_vals[1]
 
-    points.sort(key=attrgetter('y'))
-    y_min = points[0].y
-    y_max = points[2].y
-
-    for x in range(x_min, x_max+1):
-        for y in range(y_min, y_max+1):
-            (one_uv, u, v) = barycentric(Point(v0.x, v0.y), Point(v1.x, v1.y), Point(v2.x, v2.y), Point(x,y))
+    for x in range(int(x_min), int(x_max)+1):
+        for y in range(int(y_min), int(y_max)+1):
+            (one_uv, u, v) = barycentric(v0[0:2], v1[0:2], v2[0:2], array([x,y]))
             if one_uv >= 0 and u >= 0 and v >= 0:
-                z = one_uv*v0.z + u * v1.z + v * v2.z
+                z = one_uv*v0[2] + u * v1[2] + v * v2[2]
             
                 if z > zbuffer[x][y]:
                     zbuffer[x][y] = z
@@ -83,45 +79,34 @@ def draw_triangle(v0: NDArray(Any, Any), v1: NDArray(Any, Any), v2: NDArray(Any,
                         color = (255, 255, 255)
                     else:
                         # Get texture color
-                        p_texture = Point(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
-                        color = get_texture_color(texture_image, p_texture.x, p_texture.y)
+                        p_texture = one_uv * p0 + u * p1 + v * p2
+                        color = get_texture_color(texture_image, p_texture[0], p_texture[1])
                     
                     color = tuple(int(elem) for elem in np.multiply(color, shading_factor))
                     image.set(x, y, color)
     return image
 
-def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
-    (u, v, r) = cross_product(Vertex(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vertex(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
+def barycentric(p0: array, p1: array, p2: array, P: array):
+    
+    (u, v, r) = np.cross(array([p1[0]-p0[0], p2[0]-p0[0], p0[0] - P[0]]), 
+                              array([p1[1]-p0[1], p2[1]-p0[1], p0[1]-P[1]]))
     
     if r == 0:
         # Triangle is degenerated
-        return (-1,-1,-1)
+        return array([-1,-1,-1])
     else:
         # Component r should be 1: Normalize components 
-        return (1-(u+v)/r, u/r, v/r)
+        return array([1-(u+v)/r, u/r, v/r])
 
-def cross_product(v0:Vertex, v1:Vertex):
-    c0 = v0.y*v1.z - v0.z*v1.y
-    c1 = v0.z*v1.x - v0.x*v1.z
-    c2 = v0.x*v1.y - v0.y*v1.x
-    return Vertex(c0, c1, c2)
-
-def normalize(v0:Vertex):
-    length = (v0.x**2 + v0.y**2 + v0.z**2)**(1/2)
-    return Vertex(*np.multiply(v0, 1/length))
-
-def scalar(v0:Vertex, v1:Vertex):
-    return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z
-
-def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : BoundingBox, 
+def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : array, 
                        texture_points : dict, texture_image : TinyImage, 
                        image : TinyImage):
 
-    x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
-    y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
+    x_shift = (bounding_box[0, 1] + bounding_box[0, 0]) / 2
+    y_shift = (bounding_box[1, 1] + bounding_box[1, 0]) / 2
 
-    x_scale = image.width / (bounding_box.x_max - bounding_box.x_min)
-    y_scale = image.height / (bounding_box.y_max - bounding_box.y_min)
+    x_scale = image.width / (bounding_box[0, 1] - bounding_box[0, 0])
+    y_scale = image.height / (bounding_box[1, 1] - bounding_box[1, 0])
 
     scale = min(x_scale, y_scale) * .8
 
@@ -130,7 +115,8 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
     w, h = image.get_width(), image.get_height()
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)] #8.2 
 
-    for face in face_id_data.values():
+    for (key, face) in face_id_data.items():
+        print(key)
         vert_ids = face.VertexIds
         v0 = vertices[vert_ids.id_one]
         v1 = vertices[vert_ids.id_two]
@@ -151,29 +137,30 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
             p2 = None
         
         # Calculating color shading
-        n = cross_product(Vertex(*np.subtract(v0, v1)) , Vertex(*np.subtract(v2, v0)))
-        cos_phi = scalar(normalize(n), normalize(light_dir))
+        n = np.cross(v0-v1, v2-v0)
+        n = n/np.linalg.norm(n)
+        cos_phi = np.dot(n, light_dir/np.linalg.norm(light_dir))
 
         if cos_phi < 0:
             continue
 
         # Calculate screen coords
-        x0 = int((v0.x-x_shift)*scale + w /2)
-        y0 = int((v0.y-y_shift)*scale + h / 2)
+        x0 = int((v0[0]-x_shift)*scale + w /2)
+        y0 = int((v0[1]-y_shift)*scale + h / 2)
 
-        x1 = int((v1.x-x_shift)*scale + w /2)
-        y1 = int((v1.y-y_shift)*scale + h / 2)
+        x1 = int((v1[0]-x_shift)*scale + w /2)
+        y1 = int((v1[1]-y_shift)*scale + h / 2)
 
-        x2 = int((v2.x-x_shift)*scale + w / 2)
-        y2 = int((v2.y-y_shift)*scale + h / 2)
+        x2 = int((v2[0]-x_shift)*scale + w / 2)
+        y2 = int((v2[1]-y_shift)*scale + h / 2)
 
-        image = draw_triangle(Vertex(x0, y0, v0.z),  Vertex(x1, y1, v1.z), Vertex(x2, y2, v2.z), zbuffer,
+        image = draw_triangle(array([x0, y0, v0[2]]), array([x1, y1, v1[2]]), array([x2, y2, v2[2]]), zbuffer,
                                        p0, p1, p2, texture_image, cos_phi, 
                                        image)
     return image
 
-def transform_vertex(v : Vertex):
-    v = array([v.x, v.y, v.z, 1])
+def transform_vertex(v : array):
+    v = array([v[0], v[1], v[2], 1])
     v = M_perspective.dot(v)
     v = v / v[3]
-    return Vertex(v[0], v[1], v[2])
+    return v[0:3]

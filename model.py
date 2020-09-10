@@ -5,6 +5,8 @@ import our_gl as gl
 from collections import namedtuple
 from tiny_image import TinyImage
 
+from numpy import array
+
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 TexturePointIds = namedtuple("TexturePointIds", "id_one id_two id_three")
 NormalIds = namedtuple("NormalIds", "id_one id_two id_three")
@@ -68,7 +70,7 @@ def read_texture_points(texture_data_line):
     vertex_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
     match = re.findall(vertex_elem_pattern, texture_data_line)
 
-    return gl.Point(float(match[0]), float(match[1])) # match[2] is not read
+    return array([float(match[0]), float(match[1])]) # match[2] is not read
 
 def get_vertices(obj_filename):
     vertex_dict = {}
@@ -94,20 +96,22 @@ def get_vertices(obj_filename):
                     for elem in match:
                         elem_list.append(float(elem))
 
-                    vert = gl.Vertex(*elem_list)
+                    vert = array(elem_list)
 
-                    x_min = min(vert.x, x_min)
-                    y_min = min(vert.y, y_min)
-                    z_min = min(vert.z, z_min)
+                    x_min = min(vert[0], x_min)
+                    y_min = min(vert[1], y_min)
+                    z_min = min(vert[2], z_min)
 
-                    x_max = max(vert.x, x_max)
-                    y_max = max(vert.y, y_max)
-                    z_max = max(vert.z, z_max)
+                    x_max = max(vert[0], x_max)
+                    y_max = max(vert[1], y_max)
+                    z_max = max(vert[2], z_max)
 
                     vertex_count = len(vertex_dict)
                     vertex_dict[vertex_count + 1] = vert
     
-    bounding_box = gl.BoundingBox(x_min, y_min, z_min, x_max, y_max, z_max)
+    bounding_box = array([[x_min, x_max], 
+                          [y_min, y_max],
+                          [z_min, z_max]])
 
     return vertex_dict, bounding_box
 
