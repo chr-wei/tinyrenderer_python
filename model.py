@@ -15,17 +15,16 @@ FacedataIds = namedtuple("FacedataIds", "VertexIds TexturePointIds NormalIds")
 def get_model_face_ids(obj_filename):
 
     face_line_pattern = r"^f"
-    face_id_data_dict = {}
+    face_id_data_list = []
 
     with open(obj_filename) as obj_file:
         for line in obj_file:
             match  = re.search(face_line_pattern, line)
             if match:
                 face_data = read_face_ids(line)
-                face_count = len(face_id_data_dict)
-                face_id_data_dict[face_count + 1] = face_data
+                face_id_data_list.append(face_data)
 
-    return face_id_data_dict
+    return face_id_data_list
 
 def read_face_ids(face_data_line):
 

@@ -26,4 +26,4 @@ def excercise_textured_mesh(obj_filename, texture_filename, output_filename):
     image.save_to_disk(output_filename)
 
 if __name__ == "__main__":
-    excercise_textured_mesh("obj/autumn.obj", None, "autumn.png")##9.1 and 9.2
+    excercise_textured_mesh("obj/head.obj", None, "out.png")##9.1 and 9.2
