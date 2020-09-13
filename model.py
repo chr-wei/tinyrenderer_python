@@ -73,7 +73,7 @@ def read_texture_points(texture_data_line):
     return array([float(match[0]), float(match[1])]) # match[2] is not read
 
 def get_vertices(obj_filename):
-    vertex_dict = {}
+    vertex_list = []
 
     vertex_pattern = r"^v\s"
     x_min = sys.float_info.max
@@ -106,14 +106,13 @@ def get_vertices(obj_filename):
                     y_max = max(vert[1], y_max)
                     z_max = max(vert[2], z_max)
 
-                    vertex_count = len(vertex_dict)
-                    vertex_dict[vertex_count + 1] = vert
+                    vertex_list.append(vert)
     
     bounding_box = array([[x_min, x_max], 
                           [y_min, y_max],
                           [z_min, z_max]])
 
-    return vertex_dict, bounding_box
+    return vertex_list, bounding_box
 
 def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
     return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())

@@ -98,8 +98,8 @@ def barycentric(p0: array, p1: array, p2: array, P: array):
         # Component r should be 1: Normalize components 
         return array([1-(u+v)/r, u/r, v/r])
 
-def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : array, 
-                       texture_points : dict, texture_image : TinyImage, 
+def draw_textured_mesh(face_id_data : list, vertices : list, bounding_box : array, 
+                       texture_points : list, texture_image : TinyImage, 
                        image : TinyImage):
 
     x_shift = (bounding_box[0, 1] + bounding_box[0, 0]) / 2
@@ -115,8 +115,7 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : arra
     w, h = image.get_width(), image.get_height()
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)] #8.2 
 
-    for (key, face) in face_id_data.items():
-        print(key)
+    for face in face_id_data.values():
         vert_ids = face.VertexIds
         v0 = vertices[vert_ids.id_one]
         v1 = vertices[vert_ids.id_two]
@@ -164,3 +163,35 @@ def transform_vertex(v : array):
     v = M_perspective.dot(v)
     v = v / v[3]
     return v[0:3]
+
+def lookat(eye: array, center: array, up: array):
+    z = eye - center
+    z = z/np.linalg.norm(z)
+    x = np.cross(up, z)
+    x = x / np.linalg.norm(x)
+    y = np.cross(z, x)
+    y = y / np.linalg.norm(x)
+
+    M_inv = [[x[0], x[1], x[2], 0], 
+             [y[0], y[1], y[2], 0],
+             [z[0], z[1], z[2], 0],
+             [0   , 0   , 0   , 1]]
+
+    M_tr = [[1, 0, 0, -center[0]], 
+            [0, 1, 0, -center[1]],
+            [0, 0, 1, -center[1]],
+            [0, 0, 0, 1         ]]
+
+    M_modelview = M_inv * M_tr
+
+    return M_modelview
+
+def viewport(x, y, w, h, d):
+    M_viewport = [[w/2, 0,   0  , x + w/2],
+                  [0  , h/2, 0  , y + h/2],
+                  [0  , 0,   d/2, d/2    ],
+                  [0  , 0,   0  , 1      ]]
+    return M_viewport
+
+def normal_transformation(M_transform):
+    return M_transform.transpose().inverse()
