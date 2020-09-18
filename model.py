@@ -5,6 +5,9 @@ import our_gl as gl
 from collections import namedtuple
 from tiny_image import TinyImage
 
+from numpy import array
+from geom import Vector_3D, Point_2D
+
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 TexturePointIds = namedtuple("TexturePointIds", "id_one id_two id_three")
 NormalIds = namedtuple("NormalIds", "id_one id_two id_three")
@@ -13,17 +16,16 @@ FacedataIds = namedtuple("FacedataIds", "VertexIds TexturePointIds NormalIds")
 def get_model_face_ids(obj_filename):
 
     face_line_pattern = r"^f"
-    face_id_data_dict = {}
+    face_id_data_list = []
 
     with open(obj_filename) as obj_file:
         for line in obj_file:
             match  = re.search(face_line_pattern, line)
             if match:
                 face_data = read_face_ids(line)
-                face_count = len(face_id_data_dict)
-                face_id_data_dict[face_count + 1] = face_data
+                face_id_data_list.append(face_data)
 
-    return face_id_data_dict
+    return face_id_data_list
 
 def read_face_ids(face_data_line):
 
@@ -68,19 +70,12 @@ def read_texture_points(texture_data_line):
     vertex_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
     match = re.findall(vertex_elem_pattern, texture_data_line)
 
-    return gl.Point_2D(float(match[0]), float(match[1])) # match[2] is not read
+    return Point_2D([float(match[0]), float(match[1])]) # match[2] is not read
 
 def get_vertices(obj_filename):
-    vertex_dict = {}
+    vertex_list = []
 
     vertex_pattern = r"^v\s"
-    x_min = sys.float_info.max
-    y_min = sys.float_info.max
-    z_min = sys.float_info.max
-
-    x_max = sys.float_info.min
-    y_max = sys.float_info.min
-    z_max = sys.float_info.min
 
     with open(obj_filename) as obj_file:
         for line in obj_file:
@@ -94,22 +89,10 @@ def get_vertices(obj_filename):
                     for elem in match:
                         elem_list.append(float(elem))
 
-                    vert = gl.Vector_3D(*elem_list)
+                    vert = Vector_3D(*elem_list)
+                    vertex_list.append(vert)
 
-                    x_min = min(vert.x, x_min)
-                    y_min = min(vert.y, y_min)
-                    z_min = min(vert.z, z_min)
-
-                    x_max = max(vert.x, x_max)
-                    y_max = max(vert.y, y_max)
-                    z_max = max(vert.z, z_max)
-
-                    vertex_count = len(vertex_dict)
-                    vertex_dict[vertex_count + 1] = vert
-    
-    bounding_box = gl.BoundingBox(x_min, y_min, z_min, x_max, y_max, z_max)
-
-    return vertex_dict, bounding_box
+    return vertex_list
 
 def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
     return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())

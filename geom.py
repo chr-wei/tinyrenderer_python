@@ -3,11 +3,10 @@ import numpy as np
 import itertools
 
 # Tuple definitions
-Point_2D = namedtuple("Point", "x y")
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
-class Vector_2D(namedtuple("Vector_2D", "x y")):
-    __shape = (3,1)
+class Point_2D(namedtuple("Vector_2D", "x y")):
+    __shape = (2,1)
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             # Calc scalar product
