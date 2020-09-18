@@ -1,16 +1,26 @@
 from collections import namedtuple
 import numpy as np
+import math
 import itertools
 
 # Tuple definitions
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
-class Point_2D(namedtuple("Vector_2D", "x y")):
+class Point_2D(namedtuple("Point_2D", "x y")):
     __shape = (2,1)
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            # Calc scalar product
             return self.x * other.x + self.y * other.y
+        elif other.__class__.__name__ in ["float", "int"]:
+            return Point_2D(self.x * other, self.y * other)
+
+    def __rmul__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return self.x * other.x + self.y * other.y
+
+    def __add__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            return Point_2D(self.x + other.x, self.y + other.y)
 
 class Vector_3D(namedtuple("Vector_3D", "x y z")):
     __shape = (3,1)
@@ -18,9 +28,29 @@ class Vector_3D(namedtuple("Vector_3D", "x y z")):
         if other.__class__.__name__ == self.__class__.__name__:
             # Calc scalar product
             return self.x * other.x + self.y * other.y + self.z * other.z
+        elif other.__class__.__name__ in ["float", "int"]:
+            return Vector_3D(self.x * other, self.y * other, self.z * other)
         
+    def __rmul__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return Vector_3D(self.x * other, self.y * other, self.z * other)
+    
+    def __add__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            return Vector_3D(self.x + other.x, self.y + other.y, self.z + other.z)
+
     def project_2D(self):
         return Point_2D(self.x / self.z, self.y / self.z)
+    
+    def expand_4D_vect(self):
+        return Vector_4D(self.x, self.y, self.y, self.z, 0)
+    
+    def expand_4D_point(self):
+        return Vector_4D(self.x, self.y, self.y, self.z, 1)
+
+    def norm(self):
+        return Vector_3D(math.sqrt(self.x**2 + self.y**2 + self.z**2))
+    
 
 class Vector_4D(namedtuple("Vector_4D", "x y z a")):
     __shape = (4,1)
@@ -29,9 +59,19 @@ class Vector_4D(namedtuple("Vector_4D", "x y z a")):
         if other.__class__.__name__ == self.__class__.__name__:
             # Calc scalar product
             return self.x * other.x + self.y * other.y + self.z * other.z + self.a * other.a
+        elif other.__class__.__name__ in ["float", "int"]:
+            return Vector_4D(self.x * other, self.y * other, self.z * other, self.a * other)
+        
+    def __rmul__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return Vector_4D(self.x * other, self.y * other, self.z * other, self.a * other)
 
     def project_3D(self):
         return Point_2D(self.x / self.a, self.y / self.a, self.z / self.a)
+
+    def __add__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            return Vector_4D(self.x + other.x, self.y + other.y, self.z + other.z, self.a + other.a)
 
 class Matrix_3D(namedtuple("Matrix_3D", "a11 a12 a13 a21 a22 a23 a31 a32 a33")):
     __shape = (3,3)
@@ -76,6 +116,14 @@ class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32
         elif other.__class__.__name__ == "Vector_4D":
             (coeffs, _) = matmul(list(self._asdict().values()), self.__shape, list(other._asdict().values()), other.__shape)
             return Vector_4D(*coeffs)
+        
+    def tr(self):
+        (coeffs, _) = transpose(list(self._asdict().values()), self.__shape)
+        return Matrix_4D(*coeffs)
+    
+    def inv(self):
+        (coeffs, _) = inverse(list(self._asdict().values()), self.__shape)
+        return Matrix_4D(*coeffs)
 
 def matmul(mat_one: list, shape_one: tuple, mat_two: list, shape_two: tuple):
     (rows_one, cols_one) = shape_one
@@ -123,6 +171,12 @@ def transpose(mat: list, shape: tuple):
 def inverse(mat: list, shape:tuple):
     mr = np.linalg.inv(np.reshape(mat, shape))
     return mr.flatten().tolist(), shape
+
+def cross_product(v0: Vector_3D, v1: Vector_3D):
+    c0 = v0.y*v1.z - v0.z*v1.y
+    c1 = v0.z*v1.x - v0.x*v1.z
+    c2 = v0.x*v1.y - v0.y*v1.x
+    return Vector_3D(c0, c1, c2)
 
 class ShapeMissmatchException(Exception):
     pass

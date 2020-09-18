@@ -1,23 +1,12 @@
 from operator import attrgetter
 from tiny_image import TinyImage
 from model import get_texture_color
-from numpy import array
 
-from geom import Vector_3D, Point_2D, BoundingBox
+from geom import Matrix_4D, Vector_3D, Point_2D, cross_product
 
-import random
-import numpy as np
-import PIL
 
-light_dir = Vector_3D(0, 0, -1)
-c = 4
+light_dir = Vector_3D([0, 0, -1])
 
-M_perspective = array([
-                      [1, 0, 0,    0],
-                      [0, 1, 0,    0],
-                      [0, 0, 1,    0],
-                      [0, 0, -1/c, 1],
-                      ])
 
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
@@ -81,14 +70,13 @@ def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list,
                     zbuffer[x][y] = z
 
                     if None in [p0, p1, p2, texture_image]:
-                        color = (255, 255, 255)
+                        color = Vector_3D(255, 255, 255)
                     else:
                         # Get texture color
-                        p_texture = Point_2D(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
-                        color = get_texture_color(texture_image, p_texture.x, p_texture.y)
+                        p_texture = one_uv * p0 + u * p1 + v * p2
+                        color = Vector_3D(get_texture_color(texture_image, p_texture.x, p_texture.y))
                     
-                    color = tuple(int(elem) for elem in np.multiply(color, shading_factor))
-                    image.set(x, y, color)
+                    image.set(x, y, color * shading_factor)
     return image
 
 def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
@@ -101,46 +89,38 @@ def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
         # Component r should be 1: Normalize components 
         return (1-(u+v)/r, u/r, v/r)
 
-def cross_product(v0:Vector_3D, v1:Vector_3D):
-    c0 = v0.y*v1.z - v0.z*v1.y
-    c1 = v0.z*v1.x - v0.x*v1.z
-    c2 = v0.x*v1.y - v0.y*v1.x
-    return Vector_3D(c0, c1, c2)
 
-def normalize(v0:Vector_3D):
-    length = (v0.x**2 + v0.y**2 + v0.z**2)**(1/2)
-    return Vector_3D(*np.multiply(v0, 1/length))
 
-def scalar(v0:Vector_3D, v1:Vector_3D):
-    return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z
 
-def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : BoundingBox, 
-                       texture_points : dict, texture_image : TinyImage, 
+def draw_textured_mesh(face_id_data : list, vertices : list,
+                       texture_points : list, texture_image : TinyImage, 
                        image : TinyImage):
-
-    x_shift = (bounding_box.x_max + bounding_box.x_min) / 2
-    y_shift = (bounding_box.y_max + bounding_box.y_min) / 2
-
-    x_scale = image.width / (bounding_box.x_max - bounding_box.x_min)
-    y_scale = image.height / (bounding_box.y_max - bounding_box.y_min)
-
-    scale = min(x_scale, y_scale) * .8
 
     print("Drawing " + str(len(face_id_data)) + " triangles ...")
     
     w, h = image.get_width(), image.get_height()
-    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)] #8.2 
+    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    for key, face in face_id_data.items():
-        print(key)
+
+    M_modelview = lookat(Vector_3D([0, 0, 1]), 
+                         Vector_3D([0, 0, 0]), 
+                         Vector_3D([0, 1, 0]))
+
+    M_perspective = perspective(4)
+    M_viewport = viewport(0, 0, w, h, 255)
+
+    M = M_viewport * M_perspective * M_modelview
+
+    for idx, face in enumerate(face_id_data):
+        print(idx)
         vert_ids = face.VertexIds
         v0 = vertices[vert_ids.id_one]
         v1 = vertices[vert_ids.id_two]
         v2 = vertices[vert_ids.id_three]
 
-        v0 = transform_vertex(v0)
-        v1 = transform_vertex(v1)
-        v2 = transform_vertex(v2)
+        v0 = transform_vertex(v0, M)
+        v1 = transform_vertex(v1, M)
+        v2 = transform_vertex(v2, M)
 
         if not texture_image is None:
             texture_pt_ids = face.TexturePointIds
@@ -153,29 +133,55 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
             p2 = None
         
         # Calculating color shading
-        n = cross_product(Vector_3D(*np.subtract(v0, v1)) , Vector_3D(*np.subtract(v2, v0)))
-        cos_phi = scalar(normalize(n), normalize(light_dir))
+        n = cross_product(v0-v1, v2-v0)
+        cos_phi = n.norm() * light_dir.norm()
 
         if cos_phi < 0:
             continue
 
-        # Calculate screen coords
-        x0 = int((v0.x-x_shift)*scale + w /2)
-        y0 = int((v0.y-y_shift)*scale + h / 2)
 
-        x1 = int((v1.x-x_shift)*scale + w /2)
-        y1 = int((v1.y-y_shift)*scale + h / 2)
-
-        x2 = int((v2.x-x_shift)*scale + w / 2)
-        y2 = int((v2.y-y_shift)*scale + h / 2)
-
-        image = draw_triangle(Vector_3D(x0, y0, v0.z),  Vector_3D(x1, y1, v1.z), Vector_3D(x2, y2, v2.z), zbuffer,
-                                       p0, p1, p2, texture_image, cos_phi, 
-                                       image)
+        image = draw_triangle(v0, v1, v2, zbuffer,
+                              p0, p1, p2, texture_image, cos_phi, 
+                              image)
     return image
 
-def transform_vertex(v : Vector_3D):
-    v = array([v.x, v.y, v.z, 1])
-    v = M_perspective.dot(v)
-    v = v / v[3]
-    return Vector_3D(v[0], v[1], v[2])
+def transform_vertex(v : Vector_3D, M: Matrix_4D):
+    v = M * v.expand_4D_point
+    return v.project_3D
+
+def lookat(eye: Vector_3D, center: Vector_3D, up: Vector_3D):
+    z = (eye - center).norm()
+    x = cross_product(up, z).norm()
+    y = cross_product(z, x).norm()
+
+    M_inv = Matrix_4D([[x.x, x.y, x.z, 0], 
+                       [y.x, y.y, y.z, 0],
+                       [z.x, z.y, z.z, 0],
+                       [0  , 0  , 0  , 1]])
+
+    M_tr = Matrix_4D([[1, 0, 0, -center.x], 
+                      [0, 1, 0, -center.y],
+                      [0, 0, 1, -center.z],
+                      [0, 0, 0, 1        ]])
+
+    M_modelview = M_inv * M_tr
+
+    return M_modelview
+
+def perspective(c: float):
+    M_perspective = Matrix_4D([[1, 0, 0,    0],
+                               [0, 1, 0,    0],
+                               [0, 0, 1,    0],
+                               [0, 0, -1/c, 1]])
+    
+    return M_perspective
+
+def viewport(o_x, o_y, w, h, d):
+    M_viewport = Matrix_4D([[w/2, 0,   0  , o_x + w/2],
+                            [0  , h/2, 0  , o_y + h/2],
+                            [0  , 0,   d/2, d/2      ],
+                            [0  , 0,   0  , 1        ]])
+    return M_viewport
+
+def normal_transformation(M_transform: Matrix_4D):
+    return M_transform.tr().inv()
