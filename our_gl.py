@@ -100,11 +100,12 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
                          Vector_3D(0, 1, 0))
 
     M_perspective = perspective(4)
-    M_viewport = viewport(0, 0, w, h, 255)
+    scale = .8
+    M_viewport = viewport(+scale*w/8, +scale*h/8, scale*w, scale*h, 255)
 
     M = M_viewport * M_perspective * M_modelview
     
-    light_dir = Vector_3D(0, 0, -1)
+    light_dir = Vector_3D(0, -1, -1)
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
     for idx, face in enumerate(face_id_data):
