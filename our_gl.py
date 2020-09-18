@@ -1,20 +1,15 @@
-from collections import namedtuple
 from operator import attrgetter
 from tiny_image import TinyImage
 from model import get_texture_color
 from numpy import array
 
+from geom import Vector_3D, Point_2D, BoundingBox
+
 import random
 import numpy as np
 import PIL
 
-# Tuple definitions
-Point = namedtuple ("Point", "x y")
-Vertex = namedtuple("Vertex", "x y z")
-
-BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
-
-light_dir = Vertex(0, 0, -1)
+light_dir = Vector_3D(0, 0, -1)
 c = 4
 
 M_perspective = array([
@@ -63,8 +58,8 @@ def draw_triangle_lines(p0, p1, p2, image, color):
     image = draw_line(p2, p0, image, color)
     return image
 
-def draw_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list, 
-                           p0: Point, p1: Point, p2: Point, texture_image : TinyImage, shading_factor: float, 
+def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list, 
+                           p0: Point_2D, p1: Point_2D, p2: Point_2D, texture_image : TinyImage, shading_factor: float, 
                            image: TinyImage):
     points = [v0, v1, v2]
 
@@ -78,7 +73,7 @@ def draw_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list,
 
     for x in range(x_min, x_max+1):
         for y in range(y_min, y_max+1):
-            (one_uv, u, v) = barycentric(Point(v0.x, v0.y), Point(v1.x, v1.y), Point(v2.x, v2.y), Point(x,y))
+            (one_uv, u, v) = barycentric(Point_2D(v0.x, v0.y), Point_2D(v1.x, v1.y), Point_2D(v2.x, v2.y), Point_2D(x,y))
             if one_uv >= 0 and u >= 0 and v >= 0:
                 z = one_uv*v0.z + u * v1.z + v * v2.z
             
@@ -89,15 +84,15 @@ def draw_triangle(v0: Vertex, v1: Vertex, v2: Vertex, zbuffer: list,
                         color = (255, 255, 255)
                     else:
                         # Get texture color
-                        p_texture = Point(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
+                        p_texture = Point_2D(*(np.multiply(one_uv, p0) + np.multiply(u, p1) + np.multiply(v, p2)))
                         color = get_texture_color(texture_image, p_texture.x, p_texture.y)
                     
                     color = tuple(int(elem) for elem in np.multiply(color, shading_factor))
                     image.set(x, y, color)
     return image
 
-def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
-    (u, v, r) = cross_product(Vertex(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vertex(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
+def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
+    (u, v, r) = cross_product(Vector_3D(p1.x-p0.x, p2.x-p0.x, p0.x-P.x), Vector_3D(p1.y-p0.y, p2.y-p0.y, p0.y-P.y))
     
     if r == 0:
         # Triangle is degenerated
@@ -106,17 +101,17 @@ def barycentric(p0:Point, p1:Point, p2:Point, P:Point):
         # Component r should be 1: Normalize components 
         return (1-(u+v)/r, u/r, v/r)
 
-def cross_product(v0:Vertex, v1:Vertex):
+def cross_product(v0:Vector_3D, v1:Vector_3D):
     c0 = v0.y*v1.z - v0.z*v1.y
     c1 = v0.z*v1.x - v0.x*v1.z
     c2 = v0.x*v1.y - v0.y*v1.x
-    return Vertex(c0, c1, c2)
+    return Vector_3D(c0, c1, c2)
 
-def normalize(v0:Vertex):
+def normalize(v0:Vector_3D):
     length = (v0.x**2 + v0.y**2 + v0.z**2)**(1/2)
-    return Vertex(*np.multiply(v0, 1/length))
+    return Vector_3D(*np.multiply(v0, 1/length))
 
-def scalar(v0:Vertex, v1:Vertex):
+def scalar(v0:Vector_3D, v1:Vector_3D):
     return v0.x*v1.x + v0.y*v1.y + v0.z*v1.z
 
 def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : BoundingBox, 
@@ -136,7 +131,8 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
     w, h = image.get_width(), image.get_height()
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)] #8.2 
 
-    for face in face_id_data.values():
+    for key, face in face_id_data.items():
+        print(key)
         vert_ids = face.VertexIds
         v0 = vertices[vert_ids.id_one]
         v1 = vertices[vert_ids.id_two]
@@ -157,7 +153,7 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
             p2 = None
         
         # Calculating color shading
-        n = cross_product(Vertex(*np.subtract(v0, v1)) , Vertex(*np.subtract(v2, v0)))
+        n = cross_product(Vector_3D(*np.subtract(v0, v1)) , Vector_3D(*np.subtract(v2, v0)))
         cos_phi = scalar(normalize(n), normalize(light_dir))
 
         if cos_phi < 0:
@@ -173,13 +169,13 @@ def draw_textured_mesh(face_id_data : dict, vertices : dict, bounding_box : Boun
         x2 = int((v2.x-x_shift)*scale + w / 2)
         y2 = int((v2.y-y_shift)*scale + h / 2)
 
-        image = draw_triangle(Vertex(x0, y0, v0.z),  Vertex(x1, y1, v1.z), Vertex(x2, y2, v2.z), zbuffer,
+        image = draw_triangle(Vector_3D(x0, y0, v0.z),  Vector_3D(x1, y1, v1.z), Vector_3D(x2, y2, v2.z), zbuffer,
                                        p0, p1, p2, texture_image, cos_phi, 
                                        image)
     return image
 
-def transform_vertex(v : Vertex):
+def transform_vertex(v : Vector_3D):
     v = array([v.x, v.y, v.z, 1])
     v = M_perspective.dot(v)
     v = v / v[3]
-    return Vertex(v[0], v[1], v[2])
+    return Vector_3D(v[0], v[1], v[2])
