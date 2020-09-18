@@ -4,10 +4,6 @@ from model import get_texture_color
 
 from geom import Matrix_4D, Vector_3D, Point_2D, cross_product
 
-
-light_dir = Vector_3D([0, 0, -1])
-
-
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
 
@@ -53,15 +49,15 @@ def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list,
     points = [v0, v1, v2]
 
     points.sort(key=attrgetter('x'))
-    x_min = points[0].x
-    x_max = points[2].x
+    x_min = int(min(max(points[0].x, 0), image.width - 1))
+    x_max = int(min(max(points[2].x, 0), image.width - 1))
 
     points.sort(key=attrgetter('y'))
-    y_min = points[0].y
-    y_max = points[2].y
+    y_min = int(min(max(points[0].y, 0), image.height - 1))
+    y_max = int(min(max(points[2].y, 0), image.height - 1))
 
-    for x in range(x_min, x_max+1):
-        for y in range(y_min, y_max+1):
+    for x in range(x_min, x_max):
+        for y in range(y_min, y_max):
             (one_uv, u, v) = barycentric(Point_2D(v0.x, v0.y), Point_2D(v1.x, v1.y), Point_2D(v2.x, v2.y), Point_2D(x,y))
             if one_uv >= 0 and u >= 0 and v >= 0:
                 z = one_uv*v0.z + u * v1.z + v * v2.z
@@ -76,7 +72,7 @@ def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list,
                         p_texture = one_uv * p0 + u * p1 + v * p2
                         color = Vector_3D(get_texture_color(texture_image, p_texture.x, p_texture.y))
                     
-                    image.set(x, y, color * shading_factor)
+                    image.set(x, y, (color * shading_factor) // 1)
     return image
 
 def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
@@ -89,9 +85,6 @@ def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
         # Component r should be 1: Normalize components 
         return (1-(u+v)/r, u/r, v/r)
 
-
-
-
 def draw_textured_mesh(face_id_data : list, vertices : list,
                        texture_points : list, texture_image : TinyImage, 
                        image : TinyImage):
@@ -102,25 +95,29 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
 
-    M_modelview = lookat(Vector_3D([0, 0, 1]), 
-                         Vector_3D([0, 0, 0]), 
-                         Vector_3D([0, 1, 0]))
+    M_modelview = lookat(Vector_3D(0, 0, 1), 
+                         Vector_3D(0, 0, 0), 
+                         Vector_3D(0, 1, 0))
 
     M_perspective = perspective(4)
     M_viewport = viewport(0, 0, w, h, 255)
 
     M = M_viewport * M_perspective * M_modelview
+    
+    light_dir = Vector_3D(0, 0, -1)
+    light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
     for idx, face in enumerate(face_id_data):
         print(idx)
         vert_ids = face.VertexIds
-        v0 = vertices[vert_ids.id_one]
-        v1 = vertices[vert_ids.id_two]
-        v2 = vertices[vert_ids.id_three]
 
-        v0 = transform_vertex(v0, M)
-        v1 = transform_vertex(v1, M)
-        v2 = transform_vertex(v2, M)
+        v0 = vertices[vert_ids.id_one - 1]
+        v1 = vertices[vert_ids.id_two - 1]
+        v2 = vertices[vert_ids.id_three -1 ]
+
+        v0 = transform_vertex(v0, M) // 1
+        v1 = transform_vertex(v1, M) // 1
+        v2 = transform_vertex(v2, M) // 1
 
         if not texture_image is None:
             texture_pt_ids = face.TexturePointIds
@@ -134,20 +131,21 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
         
         # Calculating color shading
         n = cross_product(v0-v1, v2-v0)
+        if n.norm() is None:
+            continue
         cos_phi = n.norm() * light_dir.norm()
 
         if cos_phi < 0:
             continue
-
-
+        
         image = draw_triangle(v0, v1, v2, zbuffer,
                               p0, p1, p2, texture_image, cos_phi, 
                               image)
     return image
 
 def transform_vertex(v : Vector_3D, M: Matrix_4D):
-    v = M * v.expand_4D_point
-    return v.project_3D
+    v = M * v.expand_4D_point()
+    return v.project_3D()
 
 def lookat(eye: Vector_3D, center: Vector_3D, up: Vector_3D):
     z = (eye - center).norm()

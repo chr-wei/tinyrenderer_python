@@ -7,7 +7,7 @@ import itertools
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
 
 class Point_2D(namedtuple("Point_2D", "x y")):
-    __shape = (2,1)
+    _shape = (2,1)
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             return self.x * other.x + self.y * other.y
@@ -23,7 +23,7 @@ class Point_2D(namedtuple("Point_2D", "x y")):
             return Point_2D(self.x + other.x, self.y + other.y)
 
 class Vector_3D(namedtuple("Vector_3D", "x y z")):
-    __shape = (3,1)
+    _shape = (3,1)
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             # Calc scalar product
@@ -35,25 +35,39 @@ class Vector_3D(namedtuple("Vector_3D", "x y z")):
         if other.__class__.__name__ in ["float", "int"]:
             return Vector_3D(self.x * other, self.y * other, self.z * other)
     
+    def __truediv__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return Vector_3D(self.x / other, self.y / other, self.z / other)
+    
+    def __floordiv__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return Vector_3D(int(self.x // other), int(self.y // other), int(self.z // other))
+
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             return Vector_3D(self.x + other.x, self.y + other.y, self.z + other.z)
+    
+    def __sub__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            return Vector_3D(self.x - other.x, self.y - other.y, self.z - other.z)
 
     def project_2D(self):
         return Point_2D(self.x / self.z, self.y / self.z)
     
     def expand_4D_vect(self):
-        return Vector_4D(self.x, self.y, self.y, self.z, 0)
+        return Vector_4D(self.x, self.y, self.z, 0)
     
     def expand_4D_point(self):
-        return Vector_4D(self.x, self.y, self.y, self.z, 1)
+        return Vector_4D(self.x, self.y, self.z, 1)
 
     def norm(self):
-        return Vector_3D(math.sqrt(self.x**2 + self.y**2 + self.z**2))
+        abs = math.sqrt(self.x**2 + self.y**2 + self.z**2)
+        if abs > 0:
+            return self / abs
     
 
 class Vector_4D(namedtuple("Vector_4D", "x y z a")):
-    __shape = (4,1)
+    _shape = (4,1)
 
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
@@ -67,14 +81,17 @@ class Vector_4D(namedtuple("Vector_4D", "x y z a")):
             return Vector_4D(self.x * other, self.y * other, self.z * other, self.a * other)
 
     def project_3D(self):
-        return Point_2D(self.x / self.a, self.y / self.a, self.z / self.a)
+        if self.a == 0:
+            return Vector_3D(self.x, self.y, self.z)
+        else:
+            return Vector_3D(self.x / self.a, self.y / self.a, self.z / self.a)
 
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             return Vector_4D(self.x + other.x, self.y + other.y, self.z + other.z, self.a + other.a)
 
 class Matrix_3D(namedtuple("Matrix_3D", "a11 a12 a13 a21 a22 a23 a31 a32 a33")):
-    __shape = (3,3)
+    _shape = (3,3)
 
     def __new__(cls, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], list):
@@ -84,23 +101,23 @@ class Matrix_3D(namedtuple("Matrix_3D", "a11 a12 a13 a21 a22 a23 a31 a32 a33")):
     
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (coeffs, _) = matmul(list(self._asdict().values()), self.__shape, list(other._asdict().values()), other.__shape)
+            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
             return Matrix_3D(*coeffs)
 
         elif other.__class__.__name__ == "Vector_3D":
-            (coeffs, _) = matmul(list(self._asdict().values()), self.__shape, list(other._asdict().values()), other.__shape)
+            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
             return Vector_3D(*coeffs)
 
     def tr(self):
-        (coeffs, _) = transpose(list(self._asdict().values()), self.__shape)
+        (coeffs, _) = transpose(list(self._asdict().values()), self._shape)
         return Matrix_3D(*coeffs)
     
     def inv(self):
-        (coeffs, _) = inverse(list(self._asdict().values()), self.__shape)
+        (coeffs, _) = inverse(list(self._asdict().values()), self._shape)
         return Matrix_3D(*coeffs)
 
 class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32 a33 a34 a41 a42 a43 a44")):
-    __shape = (4,4)
+    _shape = (4,4)
 
     def __new__(cls, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], list):
@@ -110,19 +127,19 @@ class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32
     
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (coeffs, _) = matmul(list(self._asdict().values()), self.__shape, list(other._asdict().values()), other.__shape)
-            return Matrix_3D(*coeffs)
+            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
+            return Matrix_4D(*coeffs)
 
         elif other.__class__.__name__ == "Vector_4D":
-            (coeffs, _) = matmul(list(self._asdict().values()), self.__shape, list(other._asdict().values()), other.__shape)
+            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
             return Vector_4D(*coeffs)
         
     def tr(self):
-        (coeffs, _) = transpose(list(self._asdict().values()), self.__shape)
+        (coeffs, _) = transpose(list(self._asdict().values()), self._shape)
         return Matrix_4D(*coeffs)
     
     def inv(self):
-        (coeffs, _) = inverse(list(self._asdict().values()), self.__shape)
+        (coeffs, _) = inverse(list(self._asdict().values()), self._shape)
         return Matrix_4D(*coeffs)
 
 def matmul(mat_one: list, shape_one: tuple, mat_two: list, shape_two: tuple):

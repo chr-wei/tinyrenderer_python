@@ -70,7 +70,7 @@ def read_texture_points(texture_data_line):
     vertex_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
     match = re.findall(vertex_elem_pattern, texture_data_line)
 
-    return Point_2D([float(match[0]), float(match[1])]) # match[2] is not read
+    return Point_2D(float(match[0]), float(match[1])) # match[2] is not read
 
 def get_vertices(obj_filename):
     vertex_list = []
