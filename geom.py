@@ -16,7 +16,7 @@ class Point_2D(namedtuple("Point_2D", "x y")):
 
     def __rmul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            return self.x * other.x + self.y * other.y
+            return Point_2D(self.x * other, self.y * other)
 
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
