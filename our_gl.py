@@ -70,7 +70,7 @@ def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list,
                     else:
                         # Get texture color
                         p_texture = one_uv * p0 + u * p1 + v * p2
-                        color = Vector_3D(get_texture_color(texture_image, p_texture.x, p_texture.y))
+                        color = Vector_3D(*get_texture_color(texture_image, p_texture.x, p_texture.y))
                     
                     image.set(x, y, (color * shading_factor) // 1)
     return image
@@ -99,13 +99,13 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
                          Vector_3D(0, 0, 0), 
                          Vector_3D(0, 1, 0))
 
-    M_perspective = perspective(4)
+    M_perspective = perspective(4.0)
     scale = .8
     M_viewport = viewport(+scale*w/8, +scale*h/8, scale*w, scale*h, 255)
 
     M = M_viewport * M_perspective * M_modelview
     
-    light_dir = Vector_3D(0, -1, -1)
+    light_dir = Vector_3D(0, 0, -1)
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
     for idx, face in enumerate(face_id_data):
@@ -114,11 +114,11 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
 
         v0 = vertices[vert_ids.id_one - 1]
         v1 = vertices[vert_ids.id_two - 1]
-        v2 = vertices[vert_ids.id_three -1 ]
+        v2 = vertices[vert_ids.id_three - 1]
 
-        v0 = transform_vertex(v0, M) // 1
-        v1 = transform_vertex(v1, M) // 1
-        v2 = transform_vertex(v2, M) // 1
+        v0 = transform_vertex(v0, M)
+        v1 = transform_vertex(v1, M)
+        v2 = transform_vertex(v2, M)
 
         if not texture_image is None:
             texture_pt_ids = face.TexturePointIds
@@ -131,7 +131,7 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
             p2 = None
         
         # Calculating color shading
-        n = cross_product(v0-v1, v2-v0)
+        n = cross_product(v0 - v1, v2 - v0)
         if n.norm() is None:
             continue
         cos_phi = n.norm() * light_dir.norm()
@@ -146,7 +146,10 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
 
 def transform_vertex(v : Vector_3D, M: Matrix_4D):
     v = M * v.expand_4D_point()
-    return v.project_3D()
+    v = v.project_3D()
+    vz = v.z
+    v = v // 1
+    return Vector_3D(v.x, v.y, vz)
 
 def lookat(eye: Vector_3D, center: Vector_3D, up: Vector_3D):
     z = (eye - center).norm()
