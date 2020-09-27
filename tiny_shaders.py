@@ -20,8 +20,8 @@ class Flat_Shader(gl.Shader):
 
         # Get normal vector of triangle; should only be done at last vertex
         if vert_idx == 2:
-            n = cross_product(self.varying_vertex[0] - self.varying_vertex[1], 
-                              self.varying_vertex[2] - self.varying_vertex[0])
+            n = cross_product(self.varying_vertex[2] - self.varying_vertex[0], 
+                              self.varying_vertex[0] - self.varying_vertex[1])
             self.n = n.norm()
         else:
             n = None
@@ -35,7 +35,7 @@ class Flat_Shader(gl.Shader):
             cos_phi = self.n.norm() * self.light_dir.norm()
             cos_phi = 0 if cos_phi < 0 else cos_phi
 
-            color = Vector_3D(255, 255, 255) * cos_phi // 1
+            color = (Vector_3D(255, 255, 255) * cos_phi) // 1
             return (False, color) # Do not discard pixel and return color
 
 class Gouraud_Shader(gl.Shader):
@@ -50,14 +50,14 @@ class Gouraud_Shader(gl.Shader):
         self.M = M
 
     def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx)*self.light_dir) # Get diffuse lighting intensity
+        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx) * self.light_dir) # Get diffuse lighting intensity
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
-        return self.M * vertex.expand_4D_point() # Transform it to screen coordinates
+        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
 
-    def fragment(self, barycentric: tuple, color: Vector_3D):
+    def fragment(self, barycentric: tuple):
         intensity = self.varying_intensity[0]*barycentric[0] \
                   + self.varying_intensity[1]*barycentric[1] \
                   + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
-        color = Vector_3D(255, 255, 255)*intensity // 1
+        color = (Vector_3D(255, 255, 255) * intensity) // 1
         return (False, color) # Do not discard pixel and return color
