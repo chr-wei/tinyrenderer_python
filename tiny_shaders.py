@@ -26,7 +26,7 @@ class Flat_Shader(gl.Shader):
         else:
             n = None
 
-        return self.M * vertex.expand_4D_point() # Transform it to screen coordinates
+        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         if self.n is None:
