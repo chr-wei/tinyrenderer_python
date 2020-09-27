@@ -6,7 +6,7 @@ from collections import namedtuple
 from tiny_image import TinyImage
 
 from numpy import array
-from geom import Vector_3D, Point_2D
+from geom import Vector_3D, Point_2D, comp_min, comp_max
 
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 TexturePointIds = namedtuple("TexturePointIds", "id_one id_two id_three")
@@ -76,6 +76,8 @@ def get_vertices(obj_filename):
     vertex_list = []
 
     vertex_pattern = r"^v\s"
+    bb_min = Vector_3D(float('inf'), float('inf'), float('inf'))
+    bb_max = Vector_3D(float('-inf'), float('-inf'), float('-inf'))
 
     with open(obj_filename) as obj_file:
         for line in obj_file:
@@ -92,7 +94,11 @@ def get_vertices(obj_filename):
                     vert = Vector_3D(*elem_list)
                     vertex_list.append(vert)
 
-    return vertex_list
+                    bb_min = comp_min(vert, bb_min)
+                    bb_max = comp_max(vert, bb_max)
+
+    print(f"bbmin was {bb_min}, bbmax was {bb_max}")
+    return vertex_list, (bb_min, bb_max)
 
 def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
     return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())
