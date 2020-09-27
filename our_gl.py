@@ -1,4 +1,6 @@
 from operator import attrgetter
+from abc import ABC, abstractmethod
+
 from tiny_image import TinyImage
 from model import get_texture_color
 
@@ -132,3 +134,12 @@ def viewport(o_x, o_y, w, h, d):
 
 def normal_transformation(M_transform: Matrix_4D):
     return M_transform.tr().inv()
+
+class Shader():
+    @abstractmethod
+    def vertex(self, face_idx: int, vert_idx: int):
+        pass
+
+    @abstractmethod
+    def fragment(self, barycentric: tuple, color: Vector_3D):
+        pass
