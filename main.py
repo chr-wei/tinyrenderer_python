@@ -8,12 +8,22 @@ from model import get_model_face_ids, get_vertices, get_model_texture_points
 
 if __name__ == "__main__":
     
-    draw = 0
-
+    draw = 1
     if draw == 0:
+        obj_filename = "obj/autumn_lowres.obj"
+        texture_filename = "obj/TEX_autumn_body_color.png"
+        output_filename = "out.png"
+    
+    if draw == 1:
+        obj_filename = "obj/autumn_lowres.obj"
+        texture_filename = None #"obj/TEX_autumn_body_color.png"
+        output_filename = "out.png"
+
+    elif draw == 1:
         obj_filename = "obj/autumn.obj"
         texture_filename = "obj/TEX_autumn_body_color.png"
         output_filename = "out.png"
+
     else:
         obj_filename = "obj/head.obj"
         texture_filename = "obj/african_head_diffuse.tga"
@@ -31,10 +41,10 @@ if __name__ == "__main__":
     face_id_data = get_model_face_ids(obj_filename)
 
     print("Reading vertices ...")
-    vertices = get_vertices(obj_filename)
+    vertices, bbox = get_vertices(obj_filename)
 
     print("Reading texture coordinates ...")
     texture_points = get_model_texture_points(obj_filename)
-    gl.draw_textured_mesh(face_id_data, vertices, texture_points, texture_image, image)
+    gl.draw_textured_mesh(face_id_data, vertices, bbox, texture_points, texture_image, image)
 
     image.save_to_disk(output_filename)

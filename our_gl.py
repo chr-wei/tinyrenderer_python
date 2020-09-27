@@ -1,4 +1,5 @@
 from operator import attrgetter
+from progressbar import progressbar
 from tiny_image import TinyImage
 from model import get_texture_color
 
@@ -85,7 +86,7 @@ def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
         # Component r should be 1: Normalize components 
         return (1-(u+v)/r, u/r, v/r)
 
-def draw_textured_mesh(face_id_data : list, vertices : list,
+def draw_textured_mesh(face_id_data : list, vertices : list, bbox : tuple,
                        texture_points : list, texture_image : TinyImage, 
                        image : TinyImage):
 
@@ -94,12 +95,15 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
     w, h = image.get_width(), image.get_height()
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
+    M_model = model(bbox[0], bbox[1])
+    M_lookat = lookat(Vector_3D(0, 0, 1), 
+                      Vector_3D(0, 0, 0), 
+                      Vector_3D(0, 1, 0))
 
-    M_modelview = lookat(Vector_3D(0, 0, 1), 
-                         Vector_3D(0, 0, 0), 
-                         Vector_3D(0, 1, 0))
+    M_modelview = M_lookat * M_model
 
     M_perspective = perspective(4.0)
+    
     scale = .8
     M_viewport = viewport(+scale*w/8, +scale*h/8, scale*w, scale*h, 255)
 
@@ -108,8 +112,7 @@ def draw_textured_mesh(face_id_data : list, vertices : list,
     light_dir = Vector_3D(0, 0, -1)
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
-    for idx, face in enumerate(face_id_data):
-        print(idx)
+    for face in progressbar(face_id_data, ):
         vert_ids = face.VertexIds
 
         v0 = vertices[vert_ids.id_one - 1]
@@ -151,6 +154,17 @@ def transform_vertex(v : Vector_3D, M: Matrix_4D):
     v = v // 1
     return Vector_3D(v.x, v.y, vz)
 
+def model(bounds_min: Vector_3D, bounds_max: Vector_3D):
+    bounds_delta = bounds_max - bounds_min
+    bounds_scale = 2.0 / max(bounds_delta.x, bounds_delta.y, bounds_delta.z)
+    bounds_offset = (bounds_max + bounds_min) * bounds_scale / 2
+
+    M_model = Matrix_4D([[bounds_scale, 0,            0,            -bounds_offset.x], 
+                         [0,            bounds_scale, 0,            -bounds_offset.y],
+                         [0,            0,            bounds_scale, -bounds_offset.z],
+                         [0,            0,            0,            1               ]])
+    return M_model
+
 def lookat(eye: Vector_3D, center: Vector_3D, up: Vector_3D):
     z = (eye - center).norm()
     x = cross_product(up, z).norm()
@@ -166,9 +180,9 @@ def lookat(eye: Vector_3D, center: Vector_3D, up: Vector_3D):
                       [0, 0, 1, -center.z],
                       [0, 0, 0, 1        ]])
 
-    M_modelview = M_inv * M_tr
+    M_lookat = M_inv * M_tr
 
-    return M_modelview
+    return M_lookat
 
 def perspective(c: float):
     M_perspective = Matrix_4D([[1, 0, 0,    0],
