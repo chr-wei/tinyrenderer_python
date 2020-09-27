@@ -37,12 +37,13 @@ def read_face_ids(face_data_line):
     norm_list = []
 
     for idx in range(0, len(match)):
-        vert_list.append(int(match[idx][0]))
+        # Decrease all indices as .obj files are indexed starting at one
+        vert_list.append(int(match[idx][0]) - 1)
         diffuse_point_id = match[idx][1]
         if diffuse_point_id.isdigit():
             diffuse_point_id = int(diffuse_point_id)
-        diffuse_point_list.append(diffuse_point_id)
-        norm_list.append(int(match[idx][2]))
+        diffuse_point_list.append(diffuse_point_id - 1)
+        norm_list.append(int(match[idx][2]) - 1)
 
     vert_ids = VertexIds(*vert_list[:3])
     diffuse_pt_ids = DiffusePointIds(*diffuse_point_list[:3])
@@ -125,11 +126,11 @@ class Model_Storage():
             self.diffuse_map_h = self.diffuse_map.get_height
 
     def get_normal(self, face_idx, face_vertex_idx):
-        normal_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
+        normal_idx = self.face_id_data[face_idx - 1].VertexIds[face_vertex_idx]
         return self.normals[normal_idx]
 
     def get_vertex(self, face_idx, face_vertex_idx):
-        vertex_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
+        vertex_idx = self.face_id_data[face_idx - 1].VertexIds[face_vertex_idx]
         return self.vertices[vertex_idx]
 
     def get_diffuse_color(self, face_idx, barycentric: tuple):
@@ -146,3 +147,6 @@ class Model_Storage():
     
     def get_vertex_count(self):
         return len(self.vertices)
+
+    def get_face_count(self):
+        return len(self.face_id_data)
