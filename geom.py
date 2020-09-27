@@ -195,5 +195,16 @@ def cross_product(v0: Vector_3D, v1: Vector_3D):
     c2 = v0.x*v1.y - v0.y*v1.x
     return Vector_3D(c0, c1, c2)
 
+def comp_min(v0, v1):
+    minx = v0.x if v0.x < v1.x else v1.x
+    miny = v0.y if v0.y < v1.y else v1.y
+    minz = v0.z if v0.z < v1.z else v1.z
+    return Vector_3D(minx, miny, minz)
+    
+def comp_max(v0, v1):
+    maxx = v0.x if v0.x > v1.x else v1.x
+    maxy = v0.y if v0.y > v1.y else v1.y
+    maxz = v0.z if v0.z > v1.z else v1.z
+    return Vector_3D(maxx, maxy, maxz)
 class ShapeMissmatchException(Exception):
     pass
