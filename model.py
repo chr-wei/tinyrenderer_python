@@ -106,12 +106,12 @@ class Model_Storage():
     face_id_data = []
     vertices = []
     normals = []
-    bbox: ()
+    bbox =  ()
     diffuse_points = []
 
-    diffuse_map = TinyImage()
-    diffuse_map_w: int
-    diffuse_map_h: int
+    diffuse_map = None
+    diffuse_map_w = 0
+    diffuse_map_h = 0
 
     def __init__(self, object_name: str, obj_filename: str, diffuse_map_filename: str):
         self.face_id_data = get_model_face_ids(obj_filename)

@@ -4,43 +4,13 @@ from progressbar import progressbar
 from tiny_image import TinyImage
 
 import our_gl as gl
-from geom import Matrix_4D, Matrix_3D, Vector_3D, matmul, cross_product, transform_vertex
+from geom import Vector_3D, transform_vertex, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices
-
-class Gouraud_Shader(gl.Shader):
-    mdl: Model_Storage
-    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
-    light_dir: Vector_3D
-    M_viewport: Matrix_4D
-    M_projection: Matrix_4D
-    M_view: Matrix_4D
-    M_model: Matrix_4D
-
-    def Gouraud_Shader(self, mdl, light_dir, M_viewport, M_projection, M_view, M_model):
-        self.mdl = mdl
-        self.light_dir = light_dir
-        self.M_viewport = M_viewport
-        self.M_projection = M_projection
-        self.M_view = M_view
-        self.M_model = M_model
-
-    def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx)*light_dir) # Get diffuse lighting intensity
-        vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
-        
-        return self.M_viewport * self.M_projection * self.M_view * self.M_model * vertex.expand_4D_point() # Transform it to screen coordinates
-
-    def fragment(self, barycentric: tuple, color: Vector_3D):
-        intensity = self.varying_intensity[0]*barycentric[0] \
-                  + self.varying_intensity[1]*barycentric[1] \
-                  + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
-        color = Vector_3D(255, 255, 255)*intensity // 1
-        return (False, color) # Do not discard pixel and return color
 
 if __name__ == "__main__":
     
     # Model property selection
-    model_prop_set = 0
+    model_prop_set = 1
     if model_prop_set == 0:
         obj_filename = "obj/autumn.obj"
         texture_filename = "obj/TEX_autumn_body_color.png"
