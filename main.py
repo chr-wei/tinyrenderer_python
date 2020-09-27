@@ -6,6 +6,7 @@ from tiny_image import TinyImage
 import our_gl as gl
 from geom import Vector_3D, transform_vertex, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices
+from tiny_shaders import Flat_Shader
 
 if __name__ == "__main__":
     
@@ -54,8 +55,6 @@ if __name__ == "__main__":
     
     print("Reading modeldata ...")
     mdl = Model_Storage("autumn", obj_filename, texture_filename)
-    
-    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
     # Define tranformation matrices
 
@@ -78,39 +77,22 @@ if __name__ == "__main__":
     
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
+    
+    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+
+    shader = Flat_Shader(mdl,light_dir, M)
+
     # Iterate model faces
     print("Drawing triangles ...")
 
-    for face in progressbar(mdl.face_id_data):
-        vert_ids = face.VertexIds
+    screen_coords = [None] * 3
 
-        v0 = mdl.vertices[vert_ids.id_one - 1]
-        v1 = mdl.vertices[vert_ids.id_two - 1]
-        v2 = mdl.vertices[vert_ids.id_three - 1]
-
-        v0 = transform_vertex(v0, M)
-        v1 = transform_vertex(v1, M)
-        v2 = transform_vertex(v2, M)
-
-        if not mdl.diffuse_map is None:
-            texture_pt_ids = face.TexturePointIds
-            p0 = mdl.diffuse_points[texture_pt_ids.id_one - 1]
-            p1 = mdl.diffuse_points[texture_pt_ids.id_two - 1]
-            p2 = mdl.diffuse_points[texture_pt_ids.id_three -1]
-        else:
-            p0 = None
-            p1 = None
-            p2 = None
+    for face_idx in progressbar(range(mdl.get_face_count())):
+        for face_vert_idx in range(3):
+            # Get transformed vertex and prepare internal shader data
+            screen_coords[face_vert_idx] = shader.vertex(face_idx, face_vert_idx)        
         
-        # Calculating color shading
-        n = cross_product(v0 - v1, v2 - v0)
-        if n.norm() is None:
-            continue
-        cos_phi = n.norm() * light_dir.norm()
-        cos_phi = 0 if cos_phi < 0 else cos_phi
-        
-        image = gl.draw_triangle(v0, v1, v2, zbuffer,
-                                 p0, p1, p2, mdl.diffuse_map, cos_phi, 
-                                 image)
+        # Rasterize triangle
+        image = gl.draw_triangle(screen_coords, shader, zbuffer, image)
 
     image.save_to_disk(output_filename)

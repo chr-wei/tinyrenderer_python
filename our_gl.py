@@ -6,6 +6,15 @@ from model import get_texture_color
 
 from geom import Matrix_4D, Vector_3D, Point_2D, cross_product
 
+class Shader():
+    @abstractmethod
+    def vertex(self, face_idx: int, vert_idx: int): # Returns Vector_4D
+        pass
+
+    @abstractmethod
+    def fragment(self, barycentric: tuple): # Returns bool and color
+        pass
+
 def draw_line(p0, p1, image, color):
     """Draw p0 line onto an image."""
 
@@ -45,36 +54,33 @@ def draw_triangle_edges(p0, p1, p2, image, color):
     image = draw_line(p2, p0, image, color)
     return image
 
-def draw_triangle(v0: Vector_3D, v1: Vector_3D, v2: Vector_3D, zbuffer: list, 
-                           p0: Point_2D, p1: Point_2D, p2: Point_2D, texture_image : TinyImage, shading_factor: float, 
-                           image: TinyImage):
-    points = [v0, v1, v2]
+def draw_triangle(screen_coords: list, shader: Shader, zbuffer: list, image: TinyImage):
+    temp_coords = screen_coords
+    temp_coords.sort(key=attrgetter('x'))
+    x_min = int(min(max(temp_coords[0].x, 0), image.width - 1))
+    x_max = int(min(max(temp_coords[2].x, 0), image.width - 1))
 
-    points.sort(key=attrgetter('x'))
-    x_min = int(min(max(points[0].x, 0), image.width - 1))
-    x_max = int(min(max(points[2].x, 0), image.width - 1))
-
-    points.sort(key=attrgetter('y'))
-    y_min = int(min(max(points[0].y, 0), image.height - 1))
-    y_max = int(min(max(points[2].y, 0), image.height - 1))
+    temp_coords.sort(key=attrgetter('y'))
+    y_min = int(min(max(temp_coords[0].y, 0), image.height - 1))
+    y_max = int(min(max(temp_coords[2].y, 0), image.height - 1))
 
     for x in range(x_min, x_max):
         for y in range(y_min, y_max):
-            (one_uv, u, v) = barycentric(Point_2D(v0.x, v0.y), Point_2D(v1.x, v1.y), Point_2D(v2.x, v2.y), Point_2D(x,y))
+            bary = barycentric(Point_2D(screen_coords[0].x, screen_coords[0].y), 
+                                         Point_2D(screen_coords[1].x, screen_coords[1].y), 
+                                         Point_2D(screen_coords[2].x, screen_coords[2].y), Point_2D(x,y))
+
+            (one_uv, u, v) = bary
+
             if one_uv >= 0 and u >= 0 and v >= 0:
-                z = one_uv*v0.z + u * v1.z + v * v2.z
+                z = one_uv*screen_coords[0].z + u * screen_coords[1].z + v * screen_coords[2].z
             
                 if z > zbuffer[x][y]:
                     zbuffer[x][y] = z
 
-                    if None in [p0, p1, p2, texture_image]:
-                        color = Vector_3D(255, 255, 255)
-                    else:
-                        # Get texture color
-                        p_texture = one_uv * p0 + u * p1 + v * p2
-                        color = Vector_3D(*get_texture_color(texture_image, p_texture.x, p_texture.y))
-                    
-                    image.set(x, y, (color * shading_factor) // 1)
+                    discard, color = shader.fragment(bary)
+                    if not discard:
+                        image.set(x, y, color)
     return image
 
 def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
@@ -134,12 +140,3 @@ def viewport(o_x, o_y, w, h, d):
 
 def normal_transformation(M_transform: Matrix_4D):
     return M_transform.tr().inv()
-
-class Shader():
-    @abstractmethod
-    def vertex(self, face_idx: int, vert_idx: int): # Returns Vector_4D
-        pass
-
-    @abstractmethod
-    def fragment(self, barycentric: tuple, color: Vector_3D): # Returns bool
-        pass
