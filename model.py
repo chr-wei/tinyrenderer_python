@@ -11,7 +11,7 @@ from geom import Vector_3D, Point_2D, comp_min, comp_max
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 DiffusePointIds = namedtuple("DiffusePointIds", "id_one id_two id_three")
 NormalIds = namedtuple("NormalIds", "id_one id_two id_three")
-FacedataIds = namedtuple("FacedataIds", "VertexIds TexturePointIds NormalIds")
+FacedataIds = namedtuple("FacedataIds", "VertexIds DiffusePointIds NormalIds")
 
 def get_model_face_ids(obj_filename):
 
@@ -39,10 +39,14 @@ def read_face_ids(face_data_line):
     for idx in range(0, len(match)):
         # Decrease all indices as .obj files are indexed starting at one
         vert_list.append(int(match[idx][0]) - 1)
+        
         diffuse_point_id = match[idx][1]
         if diffuse_point_id.isdigit():
             diffuse_point_id = int(diffuse_point_id)
-        diffuse_point_list.append(diffuse_point_id - 1)
+            diffuse_point_list.append(diffuse_point_id - 1)
+        else:
+            diffuse_point_list.append(None)
+
         norm_list.append(int(match[idx][2]) - 1)
 
     vert_ids = VertexIds(*vert_list[:3])
@@ -60,15 +64,15 @@ def get_model_diffuse_points(obj_filename):
         for line in obj_file:
             match  = re.search(coord_line_pattern, line)
             if match:
-                pt = read_texture_points(line)
+                pt = read_diffuse_points(line)
                 diffuse_point_list.append(pt)
 
     return diffuse_point_list
 
-def read_texture_points(texture_data_line):
+def read_diffuse_points(diffuse_data_line):
 
     vertex_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
-    match = re.findall(vertex_elem_pattern, texture_data_line)
+    match = re.findall(vertex_elem_pattern, diffuse_data_line)
 
     return Point_2D(float(match[0]), float(match[1])) # match[2] is not read
 
@@ -100,8 +104,27 @@ def get_vertices(obj_filename):
     print(f"bbmin was {bb_min}, bbmax was {bb_max}")
     return vertex_list, (bb_min, bb_max)
 
-def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
-    return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())
+def get_normals(obj_filename):
+    normal_list = []
+
+    normal_pattern = r"^vn\s"
+
+    with open(obj_filename) as obj_file:
+        for line in obj_file:
+            match  = re.search(normal_pattern, line)
+            if match:
+                normal_elem_pattern = r"[+-]?[0-9]*[.]?[0-9]+[e\+\-\d]*"
+
+                match = re.findall(normal_elem_pattern, line)
+                elem_list = []
+                if match:
+                    for elem in match:
+                        elem_list.append(float(elem))
+
+                    vert = Vector_3D(*elem_list)
+                    normal_list.append(vert)
+
+    return normal_list
 
 class Model_Storage():
     face_id_data = []
@@ -114,23 +137,27 @@ class Model_Storage():
     diffuse_map_w = 0
     diffuse_map_h = 0
 
-    def __init__(self, object_name: str, obj_filename: str, diffuse_map_filename: str):
+    def __init__(self, object_name: str, obj_filename: str, diffuse_map_filename: str, normal_map_filename: str):
         self.face_id_data = get_model_face_ids(obj_filename)
         (self.vertices, self.bbox) = get_vertices(obj_filename)
         
         # Load texture ('diffuse_map')
         if not diffuse_map_filename is None:
             self.diffuse_points = get_model_diffuse_points(obj_filename)
+            self.diffuse_map = TinyImage()
             self.diffuse_map.load_image(diffuse_map_filename)
             self.diffuse_map_w = self.diffuse_map.get_width
             self.diffuse_map_h = self.diffuse_map.get_height
+        
+        if normal_map_filename is None:
+            self.normals = get_normals(obj_filename)
 
     def get_normal(self, face_idx, face_vertex_idx):
-        normal_idx = self.face_id_data[face_idx - 1].VertexIds[face_vertex_idx]
+        normal_idx = self.face_id_data[face_idx].NormalIds[face_vertex_idx]
         return self.normals[normal_idx]
 
     def get_vertex(self, face_idx, face_vertex_idx):
-        vertex_idx = self.face_id_data[face_idx - 1].VertexIds[face_vertex_idx]
+        vertex_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
         return self.vertices[vertex_idx]
 
     def get_diffuse_color(self, face_idx, barycentric: tuple):
