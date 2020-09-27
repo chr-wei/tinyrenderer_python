@@ -206,5 +206,12 @@ def comp_max(v0, v1):
     maxy = v0.y if v0.y > v1.y else v1.y
     maxz = v0.z if v0.z > v1.z else v1.z
     return Vector_3D(maxx, maxy, maxz)
+
+def transform_vertex(v : Vector_3D, M: Matrix_4D):
+    v = M * v.expand_4D_point()
+    v = v.project_3D()
+    vz = v.z
+    v = v // 1
+    return Vector_3D(v.x, v.y, vz)
 class ShapeMissmatchException(Exception):
     pass
