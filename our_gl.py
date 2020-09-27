@@ -90,12 +90,16 @@ def draw_textured_mesh(face_id_data : list, vertices : list, bbox : tuple,
                        texture_points : list, texture_image : TinyImage, 
                        image : TinyImage):
 
-    print("Drawing " + str(len(face_id_data)) + " triangles ...")
+    print("Drawing triangles ...")
     
     w, h = image.get_width(), image.get_height()
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
+    # Generate model transformation matrix which transforms vertices according to the model bounding box
+    # min[-1, -1, -1] to max[1, 1, 1] object space
     M_model = model(bbox[0], bbox[1])
+
+
     M_lookat = lookat(Vector_3D(0, 0, 1), 
                       Vector_3D(0, 0, 0), 
                       Vector_3D(0, 1, 0))
@@ -109,7 +113,7 @@ def draw_textured_mesh(face_id_data : list, vertices : list, bbox : tuple,
 
     M = M_viewport * M_perspective * M_modelview
     
-    light_dir = Vector_3D(0, 0, -1)
+    light_dir = Vector_3D(0, -1, -1)
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
     for face in progressbar(face_id_data, ):
@@ -138,9 +142,7 @@ def draw_textured_mesh(face_id_data : list, vertices : list, bbox : tuple,
         if n.norm() is None:
             continue
         cos_phi = n.norm() * light_dir.norm()
-
-        if cos_phi < 0:
-            continue
+        cos_phi = 0 if cos_phi < 0 else cos_phi
         
         image = draw_triangle(v0, v1, v2, zbuffer,
                               p0, p1, p2, texture_image, cos_phi, 
