@@ -85,7 +85,7 @@ def barycentric(p0:Point_2D, p1:Point_2D, p2:Point_2D, P:Point_2D):
         # Component r should be 1: Normalize components 
         return (1-(u+v)/r, u/r, v/r)
 
-def model(bounds_min: Vector_3D, bounds_max: Vector_3D):
+def model_transform(bounds_min: Vector_3D, bounds_max: Vector_3D):
     bounds_delta = bounds_max - bounds_min
     bounds_scale = 2.0 / max(bounds_delta.x, bounds_delta.y, bounds_delta.z)
     bounds_offset = (bounds_max + bounds_min) * bounds_scale / 2
