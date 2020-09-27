@@ -9,7 +9,7 @@ from numpy import array
 from geom import Vector_3D, Point_2D, comp_min, comp_max
 
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
-TexturePointIds = namedtuple("TexturePointIds", "id_one id_two id_three")
+DiffusePointIds = namedtuple("DiffusePointIds", "id_one id_two id_three")
 NormalIds = namedtuple("NormalIds", "id_one id_two id_three")
 FacedataIds = namedtuple("FacedataIds", "VertexIds TexturePointIds NormalIds")
 
@@ -33,37 +33,36 @@ def read_face_ids(face_data_line):
     match = re.findall(face_elem_pattern, face_data_line)
 
     vert_list = []
-    tang_list = []
+    diffuse_point_list = []
     norm_list = []
 
     for idx in range(0, len(match)):
         vert_list.append(int(match[idx][0]))
-        tang = match[idx][1]
-        if tang.isdigit():
-            tang = int(tang)
-        tang_list.append(tang)
+        diffuse_point_id = match[idx][1]
+        if diffuse_point_id.isdigit():
+            diffuse_point_id = int(diffuse_point_id)
+        diffuse_point_list.append(diffuse_point_id)
         norm_list.append(int(match[idx][2]))
 
     vert_ids = VertexIds(*vert_list[:3])
-    text_pt_ids = TexturePointIds(*tang_list[:3])
+    diffuse_pt_ids = DiffusePointIds(*diffuse_point_list[:3])
     norm_ids = NormalIds(*norm_list[:3])
 
-    return FacedataIds(vert_ids, text_pt_ids, norm_ids)
+    return FacedataIds(vert_ids, diffuse_pt_ids, norm_ids)
 
-def get_model_texture_points(obj_filename):
+def get_model_diffuse_points(obj_filename):
 
     coord_line_pattern = r"^vt"
-    texture_coord_dict = {}
+    diffuse_point_list = []
 
     with open(obj_filename) as obj_file:
         for line in obj_file:
             match  = re.search(coord_line_pattern, line)
             if match:
-                coord = read_texture_points(line)
-                coord_count = len(texture_coord_dict)
-                texture_coord_dict[coord_count + 1] = coord
+                pt = read_texture_points(line)
+                diffuse_point_list.append(pt)
 
-    return texture_coord_dict
+    return diffuse_point_list
 
 def read_texture_points(texture_data_line):
 
@@ -102,3 +101,48 @@ def get_vertices(obj_filename):
 
 def get_texture_color(texture_image : TinyImage, rel_x : float, rel_y : float):
     return texture_image.get(rel_x * texture_image.get_width(), rel_y * texture_image.get_height())
+
+class Model_Storage():
+    face_id_data = []
+    vertices = []
+    normals = []
+    bbox: ()
+    diffuse_points = []
+
+    diffuse_map = TinyImage()
+    diffuse_map_w: int
+    diffuse_map_h: int
+
+    def __init__(self, object_name: str, obj_filename: str, diffuse_map_filename: str):
+        self.face_id_data = get_model_face_ids(obj_filename)
+        (self.vertices, self.bbox) = get_vertices(obj_filename)
+        
+        # Load texture ('diffuse_map')
+        if not diffuse_map_filename is None:
+            self.diffuse_points = get_model_diffuse_points(obj_filename)
+            self.diffuse_map.load_image(diffuse_map_filename)
+            self.diffuse_map_w = self.diffuse_map.get_width
+            self.diffuse_map_h = self.diffuse_map.get_height
+
+    def get_normal(self, face_idx, face_vertex_idx):
+        normal_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
+        return self.normals[normal_idx]
+
+    def get_vertex(self, face_idx, face_vertex_idx):
+        vertex_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
+        return self.vertices[vertex_idx]
+
+    def get_diffuse_color(self, face_idx, barycentric: tuple):
+        (one_uv, u, v) = barycentric
+
+        vertex_ids = self.face_id_data[face_idx].VertexIds
+        p0 = self.diffuse_points[vertex_ids.id_one]
+        p1 = self.diffuse_points[vertex_ids.id_two]
+        p2 = self.diffuse_points[vertex_ids.id_three]
+
+        p_diffuse = one_uv * p0 + u * p1 + v * p2
+
+        return self.diffuse_map.get(p_diffuse.x * self.diffuse_map_w, p_diffuse.y * self.diffuse_map_h)
+    
+    def get_vertex_count(self):
+        return len(self.vertices)

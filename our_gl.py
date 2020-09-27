@@ -137,9 +137,9 @@ def normal_transformation(M_transform: Matrix_4D):
 
 class Shader():
     @abstractmethod
-    def vertex(self, face_idx: int, vert_idx: int):
+    def vertex(self, face_idx: int, vert_idx: int): # Returns Vector_4D
         pass
 
     @abstractmethod
-    def fragment(self, barycentric: tuple, color: Vector_3D):
+    def fragment(self, barycentric: tuple, color: Vector_3D): # Returns bool
         pass
