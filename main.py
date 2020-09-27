@@ -49,7 +49,7 @@ if __name__ == "__main__":
         scale = .8 # Viewport scaling
 
     # Light property
-        light_dir = Vector_3D(0, -1, -1)
+    light_dir = Vector_3D(0, -1, -1)
 
     if texture_filename is None:
         texture_image = None
@@ -63,10 +63,9 @@ if __name__ == "__main__":
     print("Reading vertices ...")
     vertices, bbox = get_vertices(obj_filename)
 
-    print("Reading texture coordinates ...")
-    texture_points = get_model_texture_points(obj_filename)
-
-    print("Drawing triangles ...")
+    if not texture_filename is None:
+        print("Reading texture coordinates ...")
+        texture_points = get_model_texture_points(obj_filename)
     
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
@@ -92,6 +91,8 @@ if __name__ == "__main__":
     light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
 
     # Iterate model faces
+    print("Drawing triangles ...")
+
     for face in progressbar(face_id_data, ):
         vert_ids = face.VertexIds
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
         cos_phi = 0 if cos_phi < 0 else cos_phi
         
         image = gl.draw_triangle(v0, v1, v2, zbuffer,
-                              p0, p1, p2, texture_image, cos_phi, 
-                              image)
+                                 p0, p1, p2, texture_image, cos_phi, 
+                                 image)
 
     image.save_to_disk(output_filename)
