@@ -37,7 +37,7 @@ def draw_line(p0, p1, image, color):
 
     return image
 
-def draw_triangle_lines(p0, p1, p2, image, color):
+def draw_triangle_edges(p0, p1, p2, image, color):
     image = draw_line(p0, p1, image, color)
     image = draw_line(p1, p2, image, color)
     image = draw_line(p2, p0, image, color)
