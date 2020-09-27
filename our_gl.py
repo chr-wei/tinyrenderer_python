@@ -2,7 +2,6 @@ from operator import attrgetter
 from abc import ABC, abstractmethod
 
 from tiny_image import TinyImage
-from model import get_texture_color
 
 from geom import Matrix_4D, Vector_3D, Point_2D, cross_product
 
@@ -55,7 +54,7 @@ def draw_triangle_edges(p0, p1, p2, image, color):
     return image
 
 def draw_triangle(screen_coords: list, shader: Shader, zbuffer: list, image: TinyImage):
-    temp_coords = screen_coords
+    temp_coords = screen_coords.copy()
     temp_coords.sort(key=attrgetter('x'))
     x_min = int(min(max(temp_coords[0].x, 0), image.width - 1))
     x_max = int(min(max(temp_coords[2].x, 0), image.width - 1))

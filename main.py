@@ -6,7 +6,7 @@ from tiny_image import TinyImage
 import our_gl as gl
 from geom import Vector_3D, transform_vertex, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices
-from tiny_shaders import Flat_Shader
+from tiny_shaders import Flat_Shader, Gouraud_Shader
 
 if __name__ == "__main__":
     
@@ -14,21 +14,26 @@ if __name__ == "__main__":
     model_prop_set = 1
     if model_prop_set == 0:
         obj_filename = "obj/autumn.obj"
-        texture_filename = "obj/TEX_autumn_body_color.png"
+        diffuse_filename = "obj/TEX_autumn_body_color.png"
         output_filename = "out.png"
 
     elif model_prop_set == 1:
         obj_filename = "obj/autumn.obj"
-        texture_filename = None
+        diffuse_filename = None
+        output_filename = "out.png"
+
+    elif model_prop_set == 2:
+        obj_filename = "obj/head.obj"
+        diffuse_filename = None
         output_filename = "out.png"
 
     else:
         obj_filename = "obj/head.obj"
-        texture_filename = "obj/african_head_diffuse.tga"
+        diffuse_filename = "obj/african_head_diffuse.tga"
         output_filename = "out.png"
     
     # Image property selection
-    img_prop_set = 0
+    img_prop_set = 1
     if img_prop_set == 0:
         (w, h) = (2000, 2000)
     else:
@@ -50,11 +55,11 @@ if __name__ == "__main__":
         scale = .8 # Viewport scaling
 
     # Light property
-    light_dir = Vector_3D(0, -1, -1)
+    light_dir = Vector_3D(0, 0, 1)
 
     
     print("Reading modeldata ...")
-    mdl = Model_Storage("autumn", obj_filename, texture_filename)
+    mdl = Model_Storage("autumn", obj_filename, diffuse_filename, None)
 
     # Define tranformation matrices
 
@@ -75,12 +80,15 @@ if __name__ == "__main__":
     M_modelview = M_lookat * M_model
     M = M_viewport * M_perspective * M_modelview
     
-    light_dir = (M_modelview * light_dir.expand_4D_vect()).project_3D()
-
+    light_dir = light_dir.norm()
     
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    shader = Flat_Shader(mdl,light_dir, M)
+    shader_prop_set = 0
+    if shader_prop_set == 0:
+        shader = Gouraud_Shader(mdl, light_dir, M)
+    else:
+        shader = Flat_Shader(mdl, light_dir, M)
 
     # Iterate model faces
     print("Drawing triangles ...")
