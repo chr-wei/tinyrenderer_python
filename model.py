@@ -146,8 +146,8 @@ class Model_Storage():
             self.diffuse_points = get_model_diffuse_points(obj_filename)
             self.diffuse_map = TinyImage()
             self.diffuse_map.load_image(diffuse_map_filename)
-            self.diffuse_map_w = self.diffuse_map.get_width
-            self.diffuse_map_h = self.diffuse_map.get_height
+            self.diffuse_map_w = self.diffuse_map.get_width()
+            self.diffuse_map_h = self.diffuse_map.get_height()
         
         if normal_map_filename is None:
             self.normals = get_normals(obj_filename)
@@ -160,17 +160,12 @@ class Model_Storage():
         vertex_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
         return self.vertices[vertex_idx]
 
-    def get_diffuse_color(self, face_idx, barycentric: tuple):
-        (one_uv, u, v) = barycentric
+    def get_diffuse_map_point(self, face_idx, face_vertex_idx):
+        diffuse_idx = self.face_id_data[face_idx].DiffusePointIds[face_vertex_idx]
+        return self.diffuse_points[diffuse_idx]
 
-        vertex_ids = self.face_id_data[face_idx].VertexIds
-        p0 = self.diffuse_points[vertex_ids.id_one]
-        p1 = self.diffuse_points[vertex_ids.id_two]
-        p2 = self.diffuse_points[vertex_ids.id_three]
-
-        p_diffuse = one_uv * p0 + u * p1 + v * p2
-
-        return self.diffuse_map.get(p_diffuse.x * self.diffuse_map_w, p_diffuse.y * self.diffuse_map_h)
+    def get_diffuse_color(self, rel_x, rel_y):
+        return Vector_3D(*self.diffuse_map.get(int(rel_x * self.diffuse_map_w), int(rel_y * self.diffuse_map_h)))
     
     def get_vertex_count(self):
         return len(self.vertices)
