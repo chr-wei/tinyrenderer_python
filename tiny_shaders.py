@@ -61,3 +61,33 @@ class Gouraud_Shader(gl.Shader):
                   + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
         color = (Vector_3D(255, 255, 255) * intensity) // 1
         return (False, color) # Do not discard pixel and return color
+
+class Gouraud_Shader_Segregated(gl.Shader):
+    mdl: Model_Storage
+    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
+    light_dir: Vector_3D
+    M: Matrix_4D
+    segregate_count = 1
+
+    def __init__(self, mdl, light_dir, M, segregate_count):
+        self.mdl = mdl
+        self.light_dir = light_dir
+        self.M = M
+        self.segregate_count = segregate_count
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx) * self.light_dir) # Get diffuse lighting intensity
+        vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        
+        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
+
+    def fragment(self, barycentric: tuple):
+        intensity = self.varying_intensity[0]*barycentric[0] \
+                  + self.varying_intensity[1]*barycentric[1] \
+                  + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
+        
+        # Segregates intensity values to n = 'segregate_count' distinct values
+        intensity = round(intensity * self.segregate_count) / self.segregate_count
+        
+        color = (Vector_3D(255, 255, 255) * intensity) // 1
+        return (False, color) # Do not discard pixel and return color
