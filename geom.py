@@ -1,7 +1,7 @@
-from collections import namedtuple
+from collections import namedtuple, Iterable
 import numpy as np
 import math
-import itertools
+from itertools import chain
 
 # Tuple definitions
 BoundingBox = namedtuple("BoundingBox", "x_min y_min z_min x_max y_max z_max")
@@ -95,7 +95,7 @@ class Matrix_3D(namedtuple("Matrix_3D", "a11 a12 a13 a21 a22 a23 a31 a32 a33")):
 
     def __new__(cls, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], list):
-            return super().__new__(cls, *list(itertools.chain.from_iterable(*args)))
+            return super().__new__(cls, *list(chain.from_iterable(*args)))
         else:
             return super().__new__(cls, *args, **kwargs)
     
@@ -121,7 +121,7 @@ class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32
 
     def __new__(cls, *args, **kwargs):
         if len(args) > 0 and isinstance(args[0], list):
-            return super().__new__(cls, *list(itertools.chain.from_iterable(*args)))
+            return super().__new__(cls, *list(chain.from_iterable(*args)))
         else:
             return super().__new__(cls, *args, **kwargs)
     
@@ -142,12 +142,15 @@ class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32
         (coeffs, _) = inverse(list(self._asdict().values()), self._shape)
         return Matrix_4D(*coeffs)
 
-def matmul(mat_one: list, shape_one: tuple, mat_two: list, shape_two: tuple):
+def matmul(mat_one: Iterable, shape_one: tuple, mat_two: Iterable, shape_two: tuple):
+    unpacked_mat_one = unpack_nested_iterable_to_list(mat_one)
+    unpacked_mat_two = unpack_nested_iterable_to_list(mat_two)
+
     (rows_one, cols_one) = shape_one
     (rows_two, cols_two) = shape_two
 
-    if len(mat_one) != (rows_one * cols_one) or \
-       len(mat_two) != (rows_two * cols_two) or \
+    if len(unpacked_mat_one) != (rows_one * cols_one) or \
+       len(unpacked_mat_two) != (rows_two * cols_two) or \
        cols_one != rows_two:
         # Indices to not match to perform matrix multiplication
         raise(ShapeMissmatchException)
@@ -161,8 +164,8 @@ def matmul(mat_one: list, shape_one: tuple, mat_two: list, shape_two: tuple):
                 su = 0
                 for it in range(cols_one):
                     # Actually cols_one and rows_two are and must be the same
-                    c_one = mat_one[row * cols_one + it]
-                    c_two = mat_two[it * cols_two + col]
+                    c_one = unpacked_mat_one[row * cols_one + it]
+                    c_two = unpacked_mat_two[it * cols_two + col]
                     su += c_one * c_two
                 coeffs[row * cols_two + col] = su
 
@@ -213,5 +216,13 @@ def transform_vertex(v : Vector_3D, M: Matrix_4D):
     vz = v.z
     v = v // 1
     return Vector_3D(v.x, v.y, vz)
+
+def unpack_nested_iterable_to_list(top_it: Iterable):
+
+    if any(isinstance(elem, Iterable) for elem in top_it):
+        return list(chain.from_iterable(top_it))
+    else:
+        return top_it
+
 class ShapeMissmatchException(Exception):
     pass
