@@ -101,7 +101,6 @@ def get_vertices(obj_filename):
                     bb_min = comp_min(vert, bb_min)
                     bb_max = comp_max(vert, bb_max)
 
-    print(f"bbmin was {bb_min}, bbmax was {bb_max}")
     return vertex_list, (bb_min, bb_max)
 
 def get_normals(obj_filename):
