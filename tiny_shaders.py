@@ -1,5 +1,5 @@
 import our_gl as gl
-from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex, cross_product, matmul
+from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex, cross_product, matmul, transpose
 from model import Model_Storage
 
 class Flat_Shader(gl.Shader):
@@ -105,7 +105,7 @@ class Diffuse_Gouraud_Shader(gl.Shader):
         self.M = M
 
     def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx) * self.light_dir) # Get diffuse lighting intensity
+        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx).tr() * self.light_dir) # Get diffuse lighting intensity
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
         self.varying_uv[vert_idx] = self.mdl.get_diffuse_map_point(face_idx, vert_idx) # Get diffuse map point for diffuse color interpolation
@@ -116,9 +116,10 @@ class Diffuse_Gouraud_Shader(gl.Shader):
                   + self.varying_intensity[1]*barycentric[1] \
                   + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
 
-        #(one_uv, u, v) = barycentric
-        (p_diffuse, _) = matmul(barycentric, (1, 3), self.varying_uv, (3, 2))
-        p_diffuse = Point_2D(*p_diffuse)# one_uv * p0 + u * p1 + v * p2
+        transposed_uv, shape_uv = transpose(self.varying_uv, (3,2))
+        p_diffuse, _ = matmul(transposed_uv, shape_uv, barycentric, (3,1))
+
+        p_diffuse = Point_2D(*p_diffuse)
 
         color = self.mdl.get_diffuse_color(p_diffuse.x, p_diffuse.y)
         color = (color * intensity) // 1
