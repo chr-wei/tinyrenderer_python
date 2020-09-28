@@ -15,22 +15,22 @@ if __name__ == "__main__":
     if model_prop_set == 0:
         obj_filename = "obj/autumn.obj"
         diffuse_filename = "obj/TEX_autumn_body_color.png"
-        output_filename = "out.png"
+        output_filename = "renders/out.png"
 
     elif model_prop_set == 1:
         obj_filename = "obj/autumn.obj"
         diffuse_filename = None
-        output_filename = "out.png"
+        output_filename = "renders/out.png"
 
     elif model_prop_set == 2:
         obj_filename = "obj/head.obj"
         diffuse_filename = None
-        output_filename = "out.png"
+        output_filename = "renders/out.png"
 
     else:
         obj_filename = "obj/head.obj"
         diffuse_filename = "obj/african_head_diffuse.tga"
-        output_filename = "out.png"
+        output_filename = "renders/out.png"
     
     # Image property selection
     img_prop_set = 1
