@@ -95,7 +95,11 @@ class Gouraud_Shader_Segregated(gl.Shader):
 class Diffuse_Gouraud_Shader(gl.Shader):
     mdl: Model_Storage
     varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
+    
+    # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point_2D(0,0)] * 3
+    varying_uv_shape = (3,2)
+
     light_dir: Vector_3D
     M: Matrix_4D
 
@@ -116,11 +120,12 @@ class Diffuse_Gouraud_Shader(gl.Shader):
                   + self.varying_intensity[1]*barycentric[1] \
                   + self.varying_intensity[2]*barycentric[2] # Interpolate intensity for the current pixel
 
-        transposed_uv, shape_uv = transpose(self.varying_uv, (3,2))
-        p_diffuse, _ = matmul(transposed_uv, shape_uv, barycentric, (3,1))
+        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+        transposed_uv, tr_uv_shape = transpose(self.varying_uv, self.varying_uv_shape)
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
 
-        p_diffuse = Point_2D(*p_diffuse)
+        p_uv = Point_2D(*p_uv)
 
-        color = self.mdl.get_diffuse_color(p_diffuse.x, p_diffuse.y)
+        color = self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
         color = (color * intensity) // 1
         return (False, color) # Do not discard pixel and return color
