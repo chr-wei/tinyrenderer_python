@@ -5,7 +5,7 @@ from tiny_image import TinyImage
 
 from geom import Matrix_4D, Vector_3D, Point_2D, cross_product
 
-class Shader():
+class Shader(ABC):
     @abstractmethod
     def vertex(self, face_idx: int, vert_idx: int): # Returns Vector_4D
         pass
