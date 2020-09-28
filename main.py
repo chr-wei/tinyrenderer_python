@@ -6,12 +6,12 @@ from tiny_image import TinyImage
 import our_gl as gl
 from geom import Vector_3D, transform_vertex, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices
-from tiny_shaders import Flat_Shader, Gouraud_Shader
+from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated
 
 if __name__ == "__main__":
     
     # Model property selection
-    model_prop_set = 1
+    model_prop_set = 2
     if model_prop_set == 0:
         obj_filename = "obj/autumn.obj"
         diffuse_filename = "obj/TEX_autumn_body_color.png"
@@ -84,9 +84,11 @@ if __name__ == "__main__":
     
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    shader_prop_set = 0
+    shader_prop_set = 1
     if shader_prop_set == 0:
         shader = Gouraud_Shader(mdl, light_dir, M)
+    elif shader_prop_set == 1:
+        shader = Gouraud_Shader_Segregated(mdl, light_dir, M, 4)
     else:
         shader = Flat_Shader(mdl, light_dir, M)
 
