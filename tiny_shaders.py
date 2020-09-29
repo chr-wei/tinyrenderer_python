@@ -1,5 +1,6 @@
 import our_gl as gl
-from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex, cross_product, matmul, transpose
+from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex_to_screen, cross_product, matmul, transpose, \
+                 Vector_4D_Type, transform_3D4D3D, Vector_4D
 from model import Model_Storage
 
 class Flat_Shader(gl.Shader):
@@ -20,19 +21,18 @@ class Flat_Shader(gl.Shader):
 
         # Get normal vector of triangle; should only be done at last vertex
         if vert_idx == 2:
-            n = cross_product(self.varying_vertex[2] - self.varying_vertex[0], 
-                              self.varying_vertex[0] - self.varying_vertex[1])
-            self.n = n.norm()
+            self.n = cross_product(self.varying_vertex[2] - self.varying_vertex[0], 
+                                   self.varying_vertex[0] - self.varying_vertex[1]).norm()
         else:
-            n = None
+            self.n = None
 
-        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
+        return transform_vertex_to_screen(vertex, self.M) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         if self.n is None:
             return(True, None) # discard pixel
         else:
-            cos_phi = self.n.norm() * self.light_dir.norm()
+            cos_phi = self.n.tr() * self.light_dir
             cos_phi = 0 if cos_phi < 0 else cos_phi
 
             color = (Vector_3D(255, 255, 255) * cos_phi) // 1
@@ -50,10 +50,11 @@ class Gouraud_Shader(gl.Shader):
         self.M = M
 
     def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx) * self.light_dir) # Get diffuse lighting intensity
+        n = self.mdl.get_normal(face_idx, vert_idx)
+        self.varying_intensity[vert_idx] = max(0, n.tr() * self.light_dir) # Get diffuse lighting intensity
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
-        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
+        return transform_vertex_to_screen(vertex, self.M) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         intensity = self.varying_intensity[0]*barycentric[0] \
@@ -76,10 +77,11 @@ class Gouraud_Shader_Segregated(gl.Shader):
         self.segregate_count = segregate_count
 
     def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx) * self.light_dir) # Get diffuse lighting intensity
+        n = self.mdl.get_normal(face_idx, vert_idx)
+        self.varying_intensity[vert_idx] = max(0, n.tr() * self.light_dir) # Get diffuse lighting intensity
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
-        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
+        return transform_vertex_to_screen(vertex, self.M) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         intensity = self.varying_intensity[0]*barycentric[0] \
@@ -109,11 +111,12 @@ class Diffuse_Gouraud_Shader(gl.Shader):
         self.M = M
 
     def vertex(self, face_idx: int, vert_idx: int):
-        self.varying_intensity[vert_idx] = max(0, self.mdl.get_normal(face_idx, vert_idx).tr() * self.light_dir) # Get diffuse lighting intensity
+        n = self.mdl.get_normal(face_idx, vert_idx)
+        self.varying_intensity[vert_idx] = max(0, n.tr() * self.light_dir) # Get diffuse lighting intensity
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
-        self.varying_uv[vert_idx] = self.mdl.get_diffuse_map_point(face_idx, vert_idx) # Get diffuse map point for diffuse color interpolation
-        return transform_vertex(vertex, self.M) # Transform it to screen coordinates
+        self.varying_uv[vert_idx] = self.mdl.get_uv_map_point(face_idx, vert_idx) # Get uv map point for diffuse color interpolation
+        return transform_vertex_to_screen(vertex, self.M) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         intensity = self.varying_intensity[0]*barycentric[0] \
@@ -125,6 +128,48 @@ class Diffuse_Gouraud_Shader(gl.Shader):
         p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
 
         p_uv = Point_2D(*p_uv)
+
+        color = self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
+        color = (color * intensity) // 1
+        return (False, color) # Do not discard pixel and return color
+
+class Normalmap_Shader(gl.Shader):
+    mdl: Model_Storage
+    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
+    
+    # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
+    varying_uv = [Point_2D(0,0)] * 3
+    varying_uv_shape = (3,2)
+
+    light_dir: Vector_3D
+    M_pe: Matrix_4D
+    M_sc: Matrix_4D
+    M_pe_IT: Matrix_4D
+
+    def __init__(self, mdl, light_dir, M_pe, M_sc, M_pe_IT):
+        self.mdl = mdl
+        self.light_dir = light_dir
+        self.M_pe = M_pe
+        self.M_sc = M_sc
+        self.M_pe_IT = M_pe_IT
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        
+        self.varying_uv[vert_idx] = self.mdl.get_uv_map_point(face_idx, vert_idx) # Get uv map point for diffuse color interpolation
+        return transform_vertex_to_screen(vertex, self.M_sc) # Transform it to screen coordinates
+
+    def fragment(self, barycentric: tuple):
+        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+        transposed_uv, tr_uv_shape = transpose(self.varying_uv, self.varying_uv_shape)
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+
+        p_uv = Point_2D(*p_uv)
+
+        n = self.mdl.get_normal_from_map(p_uv.x, p_uv.y)
+        n = transform_3D4D3D(n, Vector_4D_Type.DIRECTION, self.M_pe_IT).norm()
+        l = transform_3D4D3D(self.light_dir, Vector_4D_Type.DIRECTION, self.M_pe).norm()
+        intensity = max(0, n.tr() * l) # Get diffuse lighting intensity
 
         color = self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
         color = (color * intensity) // 1
