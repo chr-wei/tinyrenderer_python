@@ -6,12 +6,17 @@ from collections import namedtuple
 from tiny_image import TinyImage
 
 from numpy import array
+from enum import Enum
 from geom import Vector_3D, Point_2D, comp_min, comp_max
 
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 DiffusePointIds = namedtuple("DiffusePointIds", "id_one id_two id_three")
 NormalIds = namedtuple("NormalIds", "id_one id_two id_three")
 FacedataIds = namedtuple("FacedataIds", "VertexIds DiffusePointIds NormalIds")
+
+class NormalMapType(Enum):
+    GLOBAL = 1
+    TANGENT = 2
 
 def get_model_face_ids(obj_filename):
 
@@ -101,7 +106,6 @@ def get_vertices(obj_filename):
                     bb_min = comp_min(vert, bb_min)
                     bb_max = comp_max(vert, bb_max)
 
-    print(f"bbmin was {bb_min}, bbmax was {bb_max}")
     return vertex_list, (bb_min, bb_max)
 
 def get_normals(obj_filename):
@@ -137,7 +141,15 @@ class Model_Storage():
     diffuse_map_w = 0
     diffuse_map_h = 0
 
-    def __init__(self, object_name: str, obj_filename: str, diffuse_map_filename: str, normal_map_filename: str):
+    normal_map_type = NormalMapType.GLOBAL
+    normal_map = None
+    normal_map_w = 0
+    normal_map_h = 0
+
+    def __init__(self, object_name: str = None, obj_filename: str = None, 
+                 diffuse_map_filename: str = None, 
+                 normal_map_filename: str = None, normal_map_type = NormalMapType.GLOBAL):
+
         self.face_id_data = get_model_face_ids(obj_filename)
         (self.vertices, self.bbox) = get_vertices(obj_filename)
         
@@ -146,11 +158,17 @@ class Model_Storage():
             self.diffuse_points = get_model_diffuse_points(obj_filename)
             self.diffuse_map = TinyImage()
             self.diffuse_map.load_image(diffuse_map_filename)
-            self.diffuse_map_w = self.diffuse_map.get_width
-            self.diffuse_map_h = self.diffuse_map.get_height
-        
-        if normal_map_filename is None:
+            self.diffuse_map_w = self.diffuse_map.get_width()
+            self.diffuse_map_h = self.diffuse_map.get_height()
+
+        # Load normal map
+        if not normal_map_filename is None:
+            self.normal_map_type = normal_map_type
             self.normals = get_normals(obj_filename)
+            self.normal_map = TinyImage()
+            self.normal_map.load_image(normal_map_filename)
+            self.normal_map_w = self.normal_map.get_width()
+            self.normal_map_h = self.normal_map.get_height()
 
     def get_normal(self, face_idx, face_vertex_idx):
         normal_idx = self.face_id_data[face_idx].NormalIds[face_vertex_idx]
@@ -160,17 +178,21 @@ class Model_Storage():
         vertex_idx = self.face_id_data[face_idx].VertexIds[face_vertex_idx]
         return self.vertices[vertex_idx]
 
-    def get_diffuse_color(self, face_idx, barycentric: tuple):
-        (one_uv, u, v) = barycentric
+    def get_uv_map_point(self, face_idx, face_vertex_idx):
+        diffuse_idx = self.face_id_data[face_idx].DiffusePointIds[face_vertex_idx]
+        return self.diffuse_points[diffuse_idx]
 
-        vertex_ids = self.face_id_data[face_idx].VertexIds
-        p0 = self.diffuse_points[vertex_ids.id_one]
-        p1 = self.diffuse_points[vertex_ids.id_two]
-        p2 = self.diffuse_points[vertex_ids.id_three]
-
-        p_diffuse = one_uv * p0 + u * p1 + v * p2
-
-        return self.diffuse_map.get(p_diffuse.x * self.diffuse_map_w, p_diffuse.y * self.diffuse_map_h)
+    def get_diffuse_color(self, rel_x, rel_y):
+        return Vector_3D(*self.diffuse_map.get(int(rel_x * self.diffuse_map_w), int(rel_y * self.diffuse_map_h)))
+    
+    def get_normal_from_map(self, rel_x, rel_y):
+        if self.normal_map_type == NormalMapType.GLOBAL:
+            return Vector_3D(*self.normal_map.get(int(rel_x * self.normal_map_w), 
+                                                  int(rel_y * self.normal_map_h))).norm()
+        elif self.normal_map_type == NormalMapType.TANGENT:
+            return None
+        else:
+            return None
     
     def get_vertex_count(self):
         return len(self.vertices)
