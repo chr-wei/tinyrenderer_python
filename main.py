@@ -14,27 +14,19 @@ if __name__ == "__main__":
     # Model property selection
     model_prop_set = 3
     if model_prop_set == 0:
-        obj_filename = "obj/autumn.obj"
-        diffuse_filename = "obj/TEX_autumn_body_color.png"
-        normal_map_filename = "obj/TEX_autumn_body_normals_wrld_space.tga"
+        obj_filename = "obj/autumn/autumn.obj"
+        diffuse_filename = "obj/autumn/TEX_autumn_body_color.png"
+        normal_map_filename = "obj/autumn/TEX_autumn_body_normals_wrld_space.tga"
         normal_map_type = NormalMapType.GLOBAL
-        output_filename = "renders/out.png"
-
-    elif model_prop_set == 1:
-        obj_filename = "obj/autumn.obj"
-        diffuse_filename = None
-        output_filename = "renders/out.png"
-
-    elif model_prop_set == 2:
-        obj_filename = "obj/head.obj"
-        diffuse_filename = None
+        specular_map_filename = "obj/autumn/TEX_autumn_body_spec.tga"
         output_filename = "renders/out.png"
 
     else:
-        obj_filename = "obj/head.obj"
-        diffuse_filename = "obj/african_head_diffuse.tga"
-        normal_map_filename = "obj/african_head_nm.tga"
+        obj_filename = "obj/head/head.obj"
+        diffuse_filename = "obj/head/head_diffuse.tga"
+        normal_map_filename = "obj/head/head_nm.tga"
         normal_map_type = NormalMapType.GLOBAL
+        specular_map_filename = "obj/head/head_spec.tga"
         output_filename = "renders/out.png"
     
     # Image property selection
