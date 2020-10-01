@@ -7,7 +7,7 @@ import our_gl as gl
 from geom import Vector_3D, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices, NormalMapType
 from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated, Diffuse_Gouraud_Shader, \
-                         Normalmap_Shader
+                         Normalmap_Shader, Specularmap_Shader
 
 if __name__ == "__main__":
     
@@ -63,7 +63,8 @@ if __name__ == "__main__":
     print("Reading modeldata ...")
     mdl = Model_Storage(object_name = "autumn", obj_filename = obj_filename, 
                         diffuse_map_filename = diffuse_filename, 
-                        normal_map_filename=normal_map_filename, normal_map_type = normal_map_type)
+                        normal_map_filename=normal_map_filename, normal_map_type = normal_map_type,
+                        specular_map_filename=specular_map_filename)
 
     # Define tranformation matrices
 
@@ -89,7 +90,7 @@ if __name__ == "__main__":
 
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    shader_prop_set = 3
+    shader_prop_set = 4
     if shader_prop_set == 0:
         shader = Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 1:
@@ -98,6 +99,8 @@ if __name__ == "__main__":
         shader = Diffuse_Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 3:
         shader = Normalmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
+    elif shader_prop_set == 4:
+        shader = Specularmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
     else:
         shader = Flat_Shader(mdl, light_dir, M_sc)
 
