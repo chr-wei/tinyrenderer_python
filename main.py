@@ -16,7 +16,7 @@ if __name__ == "__main__":
     if model_prop_set == 0:
         obj_filename = "obj/autumn.obj"
         diffuse_filename = "obj/TEX_autumn_body_color.png"
-        normal_map_filename = "obj/TEX_autumn_body_normals_o_space.png"
+        normal_map_filename = "obj/TEX_autumn_body_normals_wrld_space.tga"
         normal_map_type = NormalMapType.GLOBAL
         output_filename = "renders/out.png"
 
