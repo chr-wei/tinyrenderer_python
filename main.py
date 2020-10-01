@@ -7,38 +7,30 @@ import our_gl as gl
 from geom import Vector_3D, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices, NormalMapType
 from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated, Diffuse_Gouraud_Shader, \
-                         Normalmap_Shader
+                         Normalmap_Shader, Specularmap_Shader
 
 if __name__ == "__main__":
     
     # Model property selection
-    model_prop_set = 3
+    model_prop_set = 0
     if model_prop_set == 0:
-        obj_filename = "obj/autumn.obj"
-        diffuse_filename = "obj/TEX_autumn_body_color.png"
-        normal_map_filename = "obj/TEX_autumn_body_normals_wrld_space.tga"
+        obj_filename = "obj/autumn/autumn.obj"
+        diffuse_filename = "obj/autumn/TEX_autumn_body_color.png"
+        normal_map_filename = "obj/autumn/TEX_autumn_body_normals_wrld_space.tga"
         normal_map_type = NormalMapType.GLOBAL
-        output_filename = "renders/out.png"
-
-    elif model_prop_set == 1:
-        obj_filename = "obj/autumn.obj"
-        diffuse_filename = None
-        output_filename = "renders/out.png"
-
-    elif model_prop_set == 2:
-        obj_filename = "obj/head.obj"
-        diffuse_filename = None
+        specular_map_filename = "obj/autumn/TEX_autumn_body_spec.tga"
         output_filename = "renders/out.png"
 
     else:
-        obj_filename = "obj/head.obj"
-        diffuse_filename = "obj/african_head_diffuse.tga"
-        normal_map_filename = "obj/african_head_nm.tga"
+        obj_filename = "obj/head/head.obj"
+        diffuse_filename = "obj/head/head_diffuse.tga"
+        normal_map_filename = "obj/head/head_nm.tga"
         normal_map_type = NormalMapType.GLOBAL
+        specular_map_filename = "obj/head/head_spec.tga"
         output_filename = "renders/out.png"
     
     # Image property selection
-    img_prop_set = 1
+    img_prop_set = 0
     if img_prop_set == 0:
         (w, h) = (2000, 2000)
     else:
@@ -54,7 +46,7 @@ if __name__ == "__main__":
         up = Vector_3D(0, 1, 0) # Camera 'up' direction
         scale = .8 # Viewport scaling
     elif view_prop_set == 1:
-        eye = Vector_3D(1, 1, 1)
+        eye = Vector_3D(1, 0, 1)
         center = Vector_3D(0, 0, 0)
         up = Vector_3D(0, 1, 0)
         scale = .8
@@ -65,13 +57,14 @@ if __name__ == "__main__":
         scale = .8 # Viewport scaling
 
     # Light property
-    light_dir = Vector_3D(0, 0, 1).norm()
+    light_dir = Vector_3D(1, 0, 1).norm()
 
     
     print("Reading modeldata ...")
     mdl = Model_Storage(object_name = "autumn", obj_filename = obj_filename, 
                         diffuse_map_filename = diffuse_filename, 
-                        normal_map_filename=normal_map_filename, normal_map_type = normal_map_type)
+                        normal_map_filename=normal_map_filename, normal_map_type = normal_map_type,
+                        specular_map_filename=specular_map_filename)
 
     # Define tranformation matrices
 
@@ -97,7 +90,7 @@ if __name__ == "__main__":
 
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    shader_prop_set = 3
+    shader_prop_set = 4
     if shader_prop_set == 0:
         shader = Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 1:
@@ -106,6 +99,8 @@ if __name__ == "__main__":
         shader = Diffuse_Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 3:
         shader = Normalmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
+    elif shader_prop_set == 4:
+        shader = Specularmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
     else:
         shader = Flat_Shader(mdl, light_dir, M_sc)
 
