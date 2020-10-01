@@ -134,9 +134,8 @@ class Diffuse_Gouraud_Shader(gl.Shader):
         color = (color * intensity) // 1
         return (False, color) # Do not discard pixel and return color
 
-class Normalmap_Shader(gl.Shader):
+class Global_Normalmap_Shader(gl.Shader):
     mdl: Model_Storage
-    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
     
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point_2D(0,0)] * 3
@@ -148,6 +147,9 @@ class Normalmap_Shader(gl.Shader):
 
     def __init__(self, mdl, light_dir, M_pe, M_sc, M_pe_IT):
         self.mdl = mdl
+        if self.mdl.normal_map_type != NormalMapType.GLOBAL:
+            raise ValueError
+
         self.uniform_light_dir = light_dir
         self.uniform_M_pe = M_pe
         self.uniform_M_sc = M_sc
@@ -171,13 +173,12 @@ class Normalmap_Shader(gl.Shader):
         l = transform_3D4D3D(self.uniform_light_dir, Vector_4D_Type.DIRECTION, self.uniform_M_pe).norm()
         intensity = max(0, n.tr() * l) # Get diffuse lighting intensity
 
-        color = self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
+        color = Vector_3D(255,255,255)#self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
         color = (color * intensity) // 1
         return (False, color) # Do not discard pixel and return color
 
 class Specularmap_Shader(gl.Shader):
     mdl: Model_Storage
-    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
     
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point_2D(0,0)] * 3
@@ -189,6 +190,9 @@ class Specularmap_Shader(gl.Shader):
 
     def __init__(self, mdl, light_dir, M_pe, M_sc, M_pe_IT):
         self.mdl = mdl
+        if self.mdl.normal_map_type != NormalMapType.GLOBAL:
+            raise ValueError
+
         self.uniform_light_dir = light_dir
         self.uniform_M_pe = M_pe
         self.uniform_M_sc = M_sc
