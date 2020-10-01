@@ -189,15 +189,9 @@ class Model_Storage():
     
     def get_normal_from_map(self, rel_x, rel_y):
         # Make sure to only use RGB components in Vector_3D
-        if self.normal_map_type == NormalMapType.GLOBAL:
-            rgb = Vector_3D(*self.normal_map.get(int(rel_x * self.normal_map.get_width()), 
-                                                  int(rel_y * self.normal_map.get_height()))[:3])
-            return (rgb / 255 * 2 - Vector_3D(1, 1, 1)).norm()
-
-        elif self.normal_map_type == NormalMapType.TANGENT:
-            return None
-        else:
-            return None
+        rgb = Vector_3D(*self.normal_map.get(int(rel_x * self.normal_map.get_width()), 
+                                             int(rel_y * self.normal_map.get_height()))[:3])
+        return (rgb / 255 * 2 - Vector_3D(1, 1, 1)).norm()
 
     def get_specular_power_from_map(self, rel_x, rel_y):
         # Make sure to only use GRAY component
