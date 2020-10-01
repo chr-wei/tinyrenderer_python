@@ -139,36 +139,35 @@ class Normalmap_Shader(gl.Shader):
     
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point_2D(0,0)] * 3
-    varying_uv_shape = (3,2)
 
-    light_dir: Vector_3D
-    M_pe: Matrix_4D
-    M_sc: Matrix_4D
-    M_pe_IT: Matrix_4D
+    uniform_light_dir: Vector_3D
+    uniform_M_pe: Matrix_4D
+    uniform_M_sc: Matrix_4D
+    uniform_M_pe_IT: Matrix_4D
 
     def __init__(self, mdl, light_dir, M_pe, M_sc, M_pe_IT):
         self.mdl = mdl
-        self.light_dir = light_dir
-        self.M_pe = M_pe
-        self.M_sc = M_sc
-        self.M_pe_IT = M_pe_IT
+        self.uniform_light_dir = light_dir
+        self.uniform_M_pe = M_pe
+        self.uniform_M_sc = M_sc
+        self.uniform_M_pe_IT = M_pe_IT
 
     def vertex(self, face_idx: int, vert_idx: int):
         vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         
         self.varying_uv[vert_idx] = self.mdl.get_uv_map_point(face_idx, vert_idx) # Get uv map point for diffuse color interpolation
-        return transform_vertex_to_screen(vertex, self.M_sc) # Transform it to screen coordinates
+        return transform_vertex_to_screen(vertex, self.uniform_M_sc) # Transform it to screen coordinates
 
     def fragment(self, barycentric: tuple):
         # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
-        transposed_uv, tr_uv_shape = transpose(self.varying_uv, self.varying_uv_shape)
+        transposed_uv, tr_uv_shape = transpose(self.varying_uv, (3,2))
         p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
 
         p_uv = Point_2D(*p_uv)
 
         n = self.mdl.get_normal_from_map(p_uv.x, p_uv.y)
-        n = transform_3D4D3D(n, Vector_4D_Type.DIRECTION, self.M_pe_IT).norm()
-        l = transform_3D4D3D(self.light_dir, Vector_4D_Type.DIRECTION, self.M_pe).norm()
+        n = transform_3D4D3D(n, Vector_4D_Type.DIRECTION, self.uniform_M_pe_IT).norm()
+        l = transform_3D4D3D(self.uniform_light_dir, Vector_4D_Type.DIRECTION, self.uniform_M_pe).norm()
         intensity = max(0, n.tr() * l) # Get diffuse lighting intensity
 
         color = self.mdl.get_diffuse_color(p_uv.x, p_uv.y)
