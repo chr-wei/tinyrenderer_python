@@ -1,7 +1,7 @@
 import our_gl as gl
 from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex_to_screen, cross_product, matmul, transpose, \
                  Vector_4D_Type, transform_3D4D3D, Vector_4D, comp_min
-from model import Model_Storage
+from model import Model_Storage, NormalMapType
 import math
 
 class Flat_Shader(gl.Shader):
@@ -225,4 +225,80 @@ class Specularmap_Shader(gl.Shader):
         # Combine base, diffuse and specular intensity
         color = 10 * Vector_3D(1, 1, 1) + (diffuse_intensity + 0.5 * specular_intensity) * color
         color = comp_min(Vector_3D(255, 255, 255), color) // 1
+        return (False, color) # Do not discard pixel and return color
+
+class Tangent_Normalmap_Shader(gl.Shader):
+    mdl: Model_Storage
+    
+    # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
+    varying_uv = [Point_2D(0,0)] * 3
+    varying_vert = [Vector_3D(0,0,0)] * 3
+    varying_nvert = [Vector_3D(0,0,0)] * 3
+
+    uniform_light_dir: Vector_3D
+    uniform_M_pe: Matrix_4D
+    uniform_M_sc: Matrix_4D
+    uniform_M_pe_IT: Matrix_4D
+
+    def __init__(self, mdl, light_dir, M_pe, M_pe_IT, M_viewport):
+        self.mdl = mdl
+        if self.mdl.normal_map_type != NormalMapType.TANGENT:
+            raise ValueError
+
+        self.uniform_light_dir = light_dir
+        self.uniform_M_pe = M_pe
+        self.uniform_M_pe_IT = M_pe_IT
+        self.uniform_M_viewport = M_viewport
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        # Store triangle vertex (after being transformed to perspective)
+        vertex = self.mdl.get_vertex(face_idx, vert_idx)
+        vertex = transform_3D4D3D(vertex, Vector_4D_Type.POINT, self.uniform_M_pe)
+        self.varying_vert[vert_idx] = vertex
+
+        # Store triangle vertex normal (after being transformed to perspective)
+        nvert = self.mdl.get_normal(face_idx, vert_idx) # Read normal of the vertex
+        nvert = transform_3D4D3D(nvert, Vector_4D_Type.DIRECTION, self.uniform_M_pe_IT).norm()
+        self.varying_nvert[vert_idx] = nvert # Already projected onto screen plane
+
+        # Store uv coordinates
+        self.varying_uv[vert_idx] = self.mdl.get_uv_map_point(face_idx, vert_idx) # Get uv map point for diffuse color interpolation
+        
+        # 
+        return transform_vertex_to_screen(vertex, self.uniform_M_viewport) # Transform it to screen coordinates
+
+    def fragment(self, barycentric: tuple):
+        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+        transposed_uv, tr_uv_shape = transpose(self.varying_uv, (3,2))
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+
+        transposed_nvert, tr_nvert_shape = transpose(self.varying_nvert, (3,3))
+        n_bary, _ = matmul(transposed_nvert, tr_nvert_shape, barycentric, (3,1))
+        n_bary = Vector_3D(*n_bary).norm()
+        
+        A_inv = Matrix_3D([self.varying_vert[2] - self.varying_vert[0], 
+                           self.varying_vert[1] - self.varying_vert[0], 
+                           n_bary                                     ]).inv()
+
+        b_u = Vector_3D(self.varying_uv[2].x - self.varying_uv[0].x, self.varying_uv[1].x - self.varying_uv[0].x, 0)
+        b_v = Vector_3D(self.varying_uv[2].y - self.varying_uv[0].y, self.varying_uv[1].y - self.varying_uv[0].y, 0)
+
+        i = (A_inv * b_u).norm()
+        j = (A_inv * b_v).norm()
+
+        Z_inv = Matrix_3D([i     , 
+                           j     , 
+                           n_bary]).inv()
+
+        ntn = self.mdl.get_normal_from_map(*p_uv) # Load normal of tangent space
+        
+        n = (Z_inv * ntn).norm()
+        
+        l = transform_3D4D3D(self.uniform_light_dir, Vector_4D_Type.DIRECTION, self.uniform_M_pe).norm()
+        n_l = n.tr() * l
+        diffuse_intensity = max(0, n_l) # Get diffuse lighting intensity
+
+        color = Vector_3D(255,255,255)#self.mdl.get_diffuse_color(*p_uv)
+        color = diffuse_intensity * color // 1
+        
         return (False, color) # Do not discard pixel and return color
