@@ -12,7 +12,7 @@ from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated,
 if __name__ == "__main__":
     
     # Model property selection
-    model_prop_set = 3
+    model_prop_set = 0
     if model_prop_set == 0:
         obj_filename = "obj/autumn/autumn.obj"
         diffuse_filename = "obj/autumn/TEX_autumn_body_color.png"
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         output_filename = "renders/out.png"
     
     # Image property selection
-    img_prop_set = 1
+    img_prop_set = 0
     if img_prop_set == 0:
         (w, h) = (2000, 2000)
     else:
@@ -46,7 +46,7 @@ if __name__ == "__main__":
         up = Vector_3D(0, 1, 0) # Camera 'up' direction
         scale = .8 # Viewport scaling
     elif view_prop_set == 1:
-        eye = Vector_3D(1, 1, 1)
+        eye = Vector_3D(1, 0, 1)
         center = Vector_3D(0, 0, 0)
         up = Vector_3D(0, 1, 0)
         scale = .8
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         scale = .8 # Viewport scaling
 
     # Light property
-    light_dir = Vector_3D(0, 0, 1).norm()
+    light_dir = Vector_3D(1, 0, 1).norm()
 
     
     print("Reading modeldata ...")
