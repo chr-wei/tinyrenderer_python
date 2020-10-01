@@ -7,12 +7,12 @@ import our_gl as gl
 from geom import Vector_3D, cross_product
 from model import Model_Storage, get_model_face_ids, get_vertices, NormalMapType
 from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated, Diffuse_Gouraud_Shader, \
-                         Normalmap_Shader, Specularmap_Shader
+                         Global_Normalmap_Shader, Specularmap_Shader, Tangent_Normalmap_Shader
 
 if __name__ == "__main__":
     
     # Model property selection
-    model_prop_set = 0
+    model_prop_set = 2
     if model_prop_set == 0:
         obj_filename = "obj/autumn/autumn.obj"
         diffuse_filename = "obj/autumn/TEX_autumn_body_color.png"
@@ -20,7 +20,13 @@ if __name__ == "__main__":
         normal_map_type = NormalMapType.GLOBAL
         specular_map_filename = "obj/autumn/TEX_autumn_body_spec.tga"
         output_filename = "renders/out.png"
-
+    elif model_prop_set == 1:
+        obj_filename = "obj/head/head.obj"
+        diffuse_filename = "obj/head/head_diffuse.tga"
+        normal_map_filename = "obj/head/head_nm_tangent.tga"
+        normal_map_type = NormalMapType.TANGENT
+        specular_map_filename = "obj/head/head_spec.tga"
+        output_filename = "renders/out.png"
     else:
         obj_filename = "obj/head/head.obj"
         diffuse_filename = "obj/head/head_diffuse.tga"
@@ -30,7 +36,7 @@ if __name__ == "__main__":
         output_filename = "renders/out.png"
     
     # Image property selection
-    img_prop_set = 0
+    img_prop_set = 1
     if img_prop_set == 0:
         (w, h) = (2000, 2000)
     else:
@@ -90,7 +96,7 @@ if __name__ == "__main__":
 
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    shader_prop_set = 4
+    shader_prop_set = 3
     if shader_prop_set == 0:
         shader = Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 1:
@@ -98,9 +104,11 @@ if __name__ == "__main__":
     elif shader_prop_set == 2:
         shader = Diffuse_Gouraud_Shader(mdl, light_dir, M_sc)
     elif shader_prop_set == 3:
-        shader = Normalmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
+        shader = Global_Normalmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
     elif shader_prop_set == 4:
         shader = Specularmap_Shader(mdl, light_dir, M_pe, M_sc, M_pe_IT)
+    elif shader_prop_set == 5:
+        shader = Tangent_Normalmap_Shader(mdl, light_dir, M_pe, M_pe_IT, M_viewport)
     else:
         shader = Flat_Shader(mdl, light_dir, M_sc)
 
