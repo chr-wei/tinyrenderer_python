@@ -22,8 +22,8 @@ class TinyImage:
 
     def get(self, x, y):
         """Read color of image."""
-        # Read pixel color. Only use RGB components - not alpha
-        return self._im.getpixel((x,y))[:3]
+        # Read pixel color.
+        return self._im.getpixel((x,y))
 
     def save_to_disk(self, fname):
         """Save your image to a given filename."""
