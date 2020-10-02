@@ -27,9 +27,8 @@ class TinyImage:
 
     def save_to_disk(self, fname):
         """Save your image to a given filename."""
-
-        self._im = self._im.transpose(Image.FLIP_TOP_BOTTOM)
-        self._im.save(fname)
+        imc = self._im.copy()
+        imc.transpose(Image.FLIP_TOP_BOTTOM).save(fname)
     
     def get_width(self):
         return self._im.width
