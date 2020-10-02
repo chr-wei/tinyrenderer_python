@@ -243,7 +243,7 @@ class Tangent_Normalmap_Shader(gl.Shader):
     def __init__(self, mdl, light_dir, M_pe, M_pe_IT, M_viewport):
         self.mdl = mdl
         if self.mdl.normal_map_type != NormalMapType.TANGENT:
-            raise ValueError
+            raise ValueError("Only use tangent space normalmaps with this shader")
 
         self.uniform_light_dir = light_dir
         self.uniform_M_pe = M_pe
@@ -286,13 +286,11 @@ class Tangent_Normalmap_Shader(gl.Shader):
         i = (A_inv * b_u).norm()
         j = (A_inv * b_v).norm()
 
-        Z_inv = Matrix_3D([i     , 
-                           j     , 
-                           n_bary]).inv()
+        B = Matrix_3D([i     , 
+                       j     , 
+                       n_bary]).tr()
 
-        ntn = self.mdl.get_normal_from_map(*p_uv) # Load normal of tangent space
-        
-        n = (Z_inv * ntn).norm()
+        n = (B * self.mdl.get_normal_from_map(*p_uv)).norm() # Load normal of tangent space and multiply
         
         l = transform_3D4D3D(self.uniform_light_dir, Vector_4D_Type.DIRECTION, self.uniform_M_pe).norm()
         n_l = n.tr() * l
