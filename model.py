@@ -125,8 +125,8 @@ def get_normals(obj_filename):
                     for elem in match:
                         elem_list.append(float(elem))
 
-                    vert = Vector_3D(*elem_list)
-                    normal_list.append(vert)
+                    normal = Vector_3D(*elem_list).norm()
+                    normal_list.append(normal)
 
     return normal_list
 
