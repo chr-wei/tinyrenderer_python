@@ -3,6 +3,7 @@ from collections.abc import Iterable
 import numpy as np
 import math
 from itertools import chain
+import operator
 from enum import Enum
 
 class Vector_Space(Enum):
@@ -28,6 +29,10 @@ class Point_2D(namedtuple("Point_2D", "x y")):
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             return Point_2D(self.x + other.x, self.y + other.y)
+
+    def __floordiv__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            return Point_2D(int(self.x // other), int(self.y // other))
 
 class Vector_3D(namedtuple("Vector_3D", "x y z")):
     _shape: tuple
@@ -146,7 +151,17 @@ class Matrix_3D(namedtuple("Matrix_3D", "a11 a12 a13 a21 a22 a23 a31 a32 a33")):
             return super().__new__(cls, *unpack_nested_iterable_to_list(*args))
         else:
             return super().__new__(cls, *args)
-    
+
+    def __add__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            (coeffs, _) = add(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
+            return Matrix_3D(*coeffs)
+
+    def __sub__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            (coeffs, _) = substract(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
+            return Matrix_3D(*coeffs)
+
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             (coeffs, _) = matmul(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
@@ -172,6 +187,16 @@ class Matrix_4D(namedtuple("Matrix_4D", "a11 a12 a13 a14 a21 a22 a23 a24 a31 a32
             return super().__new__(cls, *unpack_nested_iterable_to_list(*args))
         else:
             return super().__new__(cls, *args)
+
+    def __add__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            (coeffs, _) = add(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
+            return Matrix_4D(*coeffs)
+
+    def __sub__(self, other):
+        if other.__class__.__name__ == self.__class__.__name__:
+            (coeffs, _) = substract(list(self._asdict().values()), self._shape, list(other._asdict().values()), other._shape)
+            return Matrix_4D(*coeffs)
     
     def __mul__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
@@ -272,6 +297,28 @@ def unpack_nested_iterable_to_list(parent_it: Iterable):
     else:
         # No nested iterable - return parent iterable
         return parent_it
+
+def add(mat_0: Iterable, shape_0: tuple, mat_1: Iterable, shape_1: tuple):
+    unpacked_mat_0 = unpack_nested_iterable_to_list(mat_0)
+    unpacked_mat_1 = unpack_nested_iterable_to_list(mat_1)
+
+    (rows_0, cols_0) = shape_0
+    (rows_1, cols_1) = shape_1
+
+    if len(unpacked_mat_0) != (rows_0 * cols_0) or \
+       len(unpacked_mat_1) != (rows_1 * cols_1) or \
+       shape_0 != shape_1:
+        # Indices to not match to perform matrix substraction
+        raise(ShapeMissmatchException)
+    else:
+        # Return coefficients and shape tuple
+        return map(operator.add, mat_0, mat_1), shape_0
+
+def substract(mat_0: Iterable, shape_0: tuple, mat_1: Iterable, shape_1: tuple):
+    unpacked_mat_0 = unpack_nested_iterable_to_list(mat_0)
+    unpacked_mat_1 = unpack_nested_iterable_to_list(mat_1)
+    unpacked_mat_1 = [e * -1 for e in unpacked_mat_1]
+    return add(unpacked_mat_0, shape_0, unpacked_mat_1, shape_1)
 
 class ShapeMissmatchException(Exception):
     pass
