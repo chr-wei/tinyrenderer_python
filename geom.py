@@ -22,57 +22,69 @@ class NamedTupleMetaEx(typing.NamedTupleMeta):
 
 class MixinAlgebra(): 
     def __new__(self, *args, shape: tuple = None):
-        if len(args) == 1 and isinstance(args[0], list):
+        if isinstance(args[0], Iterable):
             if len(self._fields) > 1:
-                return super().__new__(self, *unpack_nested_iterable_to_list(args))
+                return super().__new__(self, *unpack_nested_iterable_to_list(args[0]))
             else:
                 return super().__new__(self, unpack_nested_iterable_to_list(args))
         else:
-            return super().__new__(self, *args)
+            if len(self._fields) > 1:
+                return super().__new__(self, *args)
+            else:
+                return super().__new__(self, list(args))
     
     # Overwrite __init__ to add 'shape' keyword parameter
     def __init__(self, *args, shape: tuple = None):
         if not shape is None:
             self._shape = shape
+        
+            if len(self.get_field_values()) != self._shape[0] * self._shape[1]:
+                raise ShapeMissmatchException
 
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (elems, _) = matadd(list(self._asdict().values()), self._shape, 
-                                 list(other._asdict().values()), other._shape)
+            (elems, _) = matadd(self.get_field_values(), self._shape, 
+                                 other.get_field_values(), other._shape)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
     
     def __sub__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (elems, _) = matsub(list(self._asdict().values()), self._shape,
-                                 list(other._asdict().values()), other._shape)
+            (elems, _) = matsub(self.get_field_values(), self._shape,
+                                 other.get_field_values(), other._shape)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
 
     def __mul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (elems, _) = compmul(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
     
     def __rmul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (elems, _) = compmul(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
     
     def __truediv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (elems, _) = compdiv(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compdiv(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
+
+    def get_field_values(self):
+        if len(self._fields) == 1 and 'elems' in self.__annotations__:
+            return list(self._asdict().values())[0]
+        else:
+            return list(self._asdict().values())
 
 
 class MixinMatrix(MixinAlgebra):
     def __mul__(self, other):
         if  MixinVector in other.__class__.__bases__:
-            (elems, s) = matmul(list(self._asdict().values()), self._shape, 
-                                 list(other._asdict().values()), other._shape) 
+            (elems, s) = matmul(self.get_field_values(), self._shape, 
+                                other.get_field_values(), other._shape) 
             if self.is_square():         
                 cl_type = globals()[other.__class__.__name__]
                 return cl_type(*elems)
@@ -80,8 +92,8 @@ class MixinMatrix(MixinAlgebra):
                 return Matrix_NxN(elems, shape = s)
 
         elif MixinMatrix in other.__class__.__bases__:
-            (elems, s) = matmul(list(self._asdict().values()), self._shape, 
-                                     list(other._asdict().values()), other._shape)
+            (elems, s) = matmul(self.get_field_values(), self._shape, 
+                                     other.get_field_values(), other._shape)
             
             if self.is_square() and other.is_square():
                 cl_type = globals()[self.__class__.__name__]
@@ -104,7 +116,7 @@ class MixinMatrix(MixinAlgebra):
         return cl_type(*elems)
 
     def tr(self):
-        (elems, shape) = transpose(self, self._shape)
+        (elems, shape) = transpose(self.get_field_values(), self._shape)
         cl_type = globals()[self.__class__.__name__]
         return cl_type(*elems, shape = shape)
 
@@ -113,11 +125,11 @@ class MixinMatrix(MixinAlgebra):
         li = unpack_nested_iterable_to_list(other)
 
         if len(other) == c and row_idx < r:
-            elems = list(self._asdict().values())
-            start_idx = row_idx * r
-            elems[start_idx : start_idx + len(li)] = li
+            elems = self.get_field_values()
+            start_idx = row_idx * (r - 1)
+            elems[start_idx : start_idx+len(li)] = li
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*elems)
+            return cl_type(*elems, shape = self._shape)
         else:
             raise ShapeMissmatchException
     
@@ -129,8 +141,8 @@ class MixinVector(MixinAlgebra):
         if self.__class__.__name__ == other.__class__.__name__ and \
             self._shape[0] < other._shape[0]:
             # Calc scalar product
-            (elems, _) = matmul(list(self._asdict().values()), self._shape, 
-                                 list(other._asdict().values()), other._shape)
+            (elems, _) = matmul(self.get_field_values(), self._shape, 
+                                 other.get_field_values(), other._shape)
             return elems[0]
             
         elif other.__class__.__name__ in ["float", "int"]:
@@ -138,7 +150,7 @@ class MixinVector(MixinAlgebra):
 
     def __floordiv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (elems, _) = compfloor(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compfloor(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems, shape = self._shape)
 
@@ -215,6 +227,14 @@ class Matrix_NxN(MixinMatrix, metaclass=NamedTupleMetaEx):
     _shape = None
     elems: list
 
+class Matrix_uv(MixinMatrix, metaclass=NamedTupleMetaEx):
+    _shape = (2,3)
+    u0: float
+    u1: float
+    u2: float
+    v0: float
+    v1: float
+    v2: float
 
 class Matrix_3D(MixinMatrix, metaclass=NamedTupleMetaEx):
     _shape = (3, 3)
