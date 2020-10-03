@@ -1,6 +1,7 @@
 import our_gl as gl
 from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex_to_screen, cross_product, matmul, transpose, \
-                 Vector_4D_Type, transform_3D4D3D, Vector_4D, comp_min
+                 Vector_4D_Type, transform_3D4D3D, Vector_4D, comp_min, unpack_nested_iterable_to_list
+
 from model import Model_Storage, NormalMapType
 import math
 
@@ -269,10 +270,10 @@ class Tangent_Normalmap_Shader(gl.Shader):
 
     def fragment(self, barycentric: tuple):
         # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
-        transposed_uv, tr_uv_shape = transpose(self.varying_uv, (3,2))
+        transposed_uv, tr_uv_shape = transpose(unpack_nested_iterable_to_list(self.varying_uv), (3,2))
         p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
 
-        transposed_nvert, tr_nvert_shape = transpose(self.varying_nvert, (3,3))
+        transposed_nvert, tr_nvert_shape = transpose(unpack_nested_iterable_to_list(self.varying_nvert), (3,3))
         n_bary, _ = matmul(transposed_nvert, tr_nvert_shape, barycentric, (3,1))
         n_bary = Vector_3D(*n_bary).norm()
         
