@@ -1,5 +1,5 @@
 import our_gl as gl
-from geom import Matrix_4D, Matrix_3D, Vector_3D, Point_2D, transform_vertex_to_screen, cross_product, matmul, transpose, \
+from geom import Matrix_4D, Matrix_3D, Matrix_uv, Vector_3D, Barycentric, Point_2D, Point_UV, transform_vertex_to_screen, cross_product, matmul, transpose, \
                  Vector_4D_Type, transform_3D4D3D, Vector_4D, comp_min, unpack_nested_iterable_to_list
 
 from model import Model_Storage, NormalMapType
@@ -232,7 +232,7 @@ class Tangent_Normalmap_Shader(gl.Shader):
     mdl: Model_Storage
     
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
-    varying_uv = [Point_2D(0,0)] * 3
+    varying_uv = Matrix_uv([0]*6)
     varying_vert = [Vector_3D(0,0,0)] * 3
     varying_nvert = [Vector_3D(0,0,0)] * 3
 
@@ -262,33 +262,33 @@ class Tangent_Normalmap_Shader(gl.Shader):
         nvert = transform_3D4D3D(nvert, Vector_4D_Type.DIRECTION, self.uniform_M_pe_IT).norm()
         self.varying_nvert[vert_idx] = nvert # Already projected onto screen plane
 
-        # Store uv coordinates
-        self.varying_uv[vert_idx] = self.mdl.get_uv_map_point(face_idx, vert_idx) # Get uv map point for diffuse color interpolation
-        
-        # 
-        return transform_vertex_to_screen(vertex, self.uniform_M_viewport) # Transform it to screen coordinates
+        # Get uv map point for diffuse color interpolation and store it
+        self.varying_uv = self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
+
+        # Transform it to screen coordinates
+        return transform_vertex_to_screen(vertex, self.uniform_M_viewport)
 
     def fragment(self, barycentric: tuple):
-        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
-        transposed_uv, tr_uv_shape = transpose(unpack_nested_iterable_to_list(self.varying_uv), (3,2))
-        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+        bary = Barycentric(barycentric)
+        p = self.varying_uv * bary
+        p_uv = Point_UV(*p)
 
         transposed_nvert, tr_nvert_shape = transpose(unpack_nested_iterable_to_list(self.varying_nvert), (3,3))
         n_bary, _ = matmul(transposed_nvert, tr_nvert_shape, barycentric, (3,1))
         n_bary = Vector_3D(*n_bary).norm()
-        
-        A_inv = Matrix_3D([self.varying_vert[2] - self.varying_vert[0], 
-                           self.varying_vert[1] - self.varying_vert[0], 
+
+        A_inv = Matrix_3D([self.varying_vert[2] - self.varying_vert[0],
+                           self.varying_vert[1] - self.varying_vert[0],
                            n_bary                                     ]).inv()
 
-        b_u = Vector_3D(self.varying_uv[2].x - self.varying_uv[0].x, self.varying_uv[1].x - self.varying_uv[0].x, 0)
-        b_v = Vector_3D(self.varying_uv[2].y - self.varying_uv[0].y, self.varying_uv[1].y - self.varying_uv[0].y, 0)
+        b_u = Vector_3D(self.varying_uv.u2 - self.varying_uv.u0, self.varying_uv.u1 - self.varying_uv.u0, 0)
+        b_v = Vector_3D(self.varying_uv.v2 - self.varying_uv.v0, self.varying_uv.v1 - self.varying_uv.v0, 0)
 
         i = (A_inv * b_u).norm()
         j = (A_inv * b_v).norm()
 
-        B = Matrix_3D([i     , 
-                       j     , 
+        B = Matrix_3D([i     ,
+                       j     ,
                        n_bary]).tr()
 
         n = (B * self.mdl.get_normal_from_map(*p_uv)).norm() # Load normal of tangent space and multiply
