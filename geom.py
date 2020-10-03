@@ -20,7 +20,7 @@ class NamedTupleMetaEx(typing.NamedTupleMeta):
         bases = bases + (cls_obj,)
         return type(typename, bases, {})
 
-class MixinAlgebra(): 
+class MixinAlgebra():
     def __new__(self, *args, shape: tuple = None):
         if isinstance(args[0], Iterable):
             if len(self._fields) > 1:
@@ -32,22 +32,22 @@ class MixinAlgebra():
                 return super().__new__(self, *args)
             else:
                 return super().__new__(self, list(args))
-    
+
     # Overwrite __init__ to add 'shape' keyword parameter
     def __init__(self, *args, shape: tuple = None):
         if not shape is None:
             self._shape = shape
-        
+
             if len(self.get_field_values()) != self._shape[0] * self._shape[1]:
                 raise ShapeMissmatchException
 
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (elems, _) = matadd(self.get_field_values(), self._shape, 
+            (elems, _) = matadd(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
-    
+
     def __sub__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             (elems, _) = matsub(self.get_field_values(), self._shape,
@@ -60,13 +60,13 @@ class MixinAlgebra():
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
-    
+
     def __rmul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
-    
+
     def __truediv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
             (elems, _) = compdiv(self.get_field_values(), self._shape, other)
@@ -78,7 +78,7 @@ class MixinAlgebra():
             return list(self._asdict().values())[0]
         else:
             return list(self._asdict().values())
-    
+
     def __str__(self):
         prefix = self.__class__.__name__ + "("
         with np.printoptions(precision = 3, suppress = True):
@@ -89,23 +89,23 @@ class MixinAlgebra():
 class MixinMatrix(MixinAlgebra):
     def __mul__(self, other):
         if  MixinVector in other.__class__.__bases__:
-            (elems, s) = matmul(self.get_field_values(), self._shape, 
-                                other.get_field_values(), other._shape) 
-            if self.is_square():         
+            (elems, shp) = matmul(self.get_field_values(), self._shape,
+                                other.get_field_values(), other._shape)
+            if self.is_square():
                 cl_type = globals()[other.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return Matrix_NxN(elems, shape = s)
+                return Matrix_NxN(elems, shape = shp)
 
         elif MixinMatrix in other.__class__.__bases__:
-            (elems, s) = matmul(self.get_field_values(), self._shape, 
+            (elems, shp) = matmul(self.get_field_values(), self._shape,
                                      other.get_field_values(), other._shape)
-            
+
             if self.is_square() and other.is_square():
                 cl_type = globals()[self.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return Matrix_NxN(elems, shape = s)
+                return Matrix_NxN(elems, shape = shp)
 
     def is_square(self):
         return self._shape[0] == self._shape[1]
@@ -120,31 +120,41 @@ class MixinMatrix(MixinAlgebra):
         cl_type = globals()[self.__class__.__name__]
         return cl_type(*elems, shape = shape)
 
+    def get_row(self, row_idx):
+        """Returns content of row as list."""
+        (rows, cols) = self._shape
+        elems = self.get_field_values()
+        start_idx = row_idx * rows
+        return Matrix_NxN(elems[start_idx:start_idx+cols], shape = (1, cols))
+
+    def get_col(self, col_idx):
+        return self.tr().get_row(col_idx)
+
     def set_row(self, row_idx, other: Iterable):
-        (r,c) = self._shape
+        (rows, cols) = self._shape
         li = unpack_nested_iterable_to_list(other)
 
-        if len(other) == c and row_idx < r:
+        if len(li) == cols and row_idx < rows:
             elems = self.get_field_values()
-            start_idx = row_idx * (r - 1)
-            elems[start_idx : start_idx+len(li)] = li
+            start_idx = row_idx * cols
+            elems[start_idx:start_idx+cols] = li
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems, shape = self._shape)
         else:
             raise ShapeMissmatchException
-    
+
     def set_col(self, col_idx, other: Iterable):
         return self.tr().set_row(col_idx, other).tr()
 
 class MixinVector(MixinAlgebra):
-    def __mul__(self, other):     
+    def __mul__(self, other):
         if self.__class__.__name__ == other.__class__.__name__ and \
             self._shape[0] < other._shape[0]:
             # Calc scalar product
-            (elems, _) = matmul(self.get_field_values(), self._shape, 
+            (elems, _) = matmul(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
             return elems[0]
-            
+
         elif other.__class__.__name__ in ["float", "int"]:
             return super().__mul__(other)
 
@@ -156,11 +166,11 @@ class MixinVector(MixinAlgebra):
 
     def tr(self):
         # Transpose MixinVector
-        (s,h) = self._shape
-        
+        (rows, cols) = self._shape
+
         cl_type = globals()[self.__class__.__name__]
         elems = self._asdict().values()
-        return cl_type(*elems, shape = (h,s))
+        return cl_type(*elems, shape = (cols, rows))
 
 class Point_2D(MixinVector, metaclass=NamedTupleMetaEx):
     _shape = (2,1)
@@ -268,7 +278,7 @@ class Matrix_4D(MixinMatrix, metaclass=NamedTupleMetaEx):
     a44: float
 
 def matmul(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
-    
+
     (rows_0, cols_0) = shape_0
     (rows_1, cols_1) = shape_1
 
@@ -307,9 +317,9 @@ def transpose(mat: list, shape: tuple):
     elems = [None for i in range(rows * cols)]
     for row in range(rows):
         for col in range(cols):
-            e = mat[row * cols + col] # Read row-wise
-            elems[col * rows + row] = e
-    
+            ele = mat[row * cols + col] # Read row-wise
+            elems[col * rows + row] = ele
+
     return elems, (cols, rows)
 
 def inverse(mat: list, shape:tuple):
@@ -317,14 +327,14 @@ def inverse(mat: list, shape:tuple):
     return mr.flatten().tolist(), shape
 
 def cross_product(v0: Vector_3D, v1: Vector_3D):
-    c0 = v0.y*v1.z - v0.z*v1.y
-    c1 = v0.z*v1.x - v0.x*v1.z
-    c2 = v0.x*v1.y - v0.y*v1.x
-    return Vector_3D(c0, c1, c2)
+    c_0 = v0.y*v1.z - v0.z*v1.y
+    c_1 = v0.z*v1.x - v0.x*v1.z
+    c_2 = v0.x*v1.y - v0.y*v1.x
+    return Vector_3D(c_0, c_1, c_2)
 
 def comp_min(v0, v1):
     return Vector_3D(min(v0.x, v1.x), min(v0.y, v1.y), min(v0.z, v1.z))
-    
+
 def comp_max(v0, v1):
     return Vector_3D(max(v0.x, v1.x), max(v0.y, v1.y), max(v0.z, v1.z))
 
