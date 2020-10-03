@@ -3,7 +3,7 @@
 
 import math
 import our_gl as gl
-from geom import Matrix_4D, Matrix_3D, Matrix_uv, \
+from geom import Matrix_NxN, Matrix_4D, Matrix_3D, Matrix_uv, \
                  Vector_4D_Type, Vector_3D, Barycentric, Point_2D, Point_UV, \
                  transform_3D4D3D, transform_vertex_to_screen, \
                  cross_product, matmul, transpose, \
@@ -289,11 +289,17 @@ class TangentNormalmapShader(gl.Shader):
     mdl: Model_Storage
 
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
-    varying_uv = Matrix_uv([0]*6)
-    varying_vert = [Vector_3D(0,0,0)] * 3
-    varying_nvert = [Vector_3D(0,0,0)] * 3
+    varying_uv = Matrix_uv(6*[0])
 
-    uniform_light_dir: Vector_3D
+    # Contains precalculated info of varying_vert to save ops in fragment shader
+    varying_vert = Matrix_3D(9*[0])
+    varying_A = Matrix_3D(9*[0])
+
+    varying_normal = Matrix_3D(9*[0])
+    varying_b_u: Vector_3D
+    varying_b_v: Vector_3D
+
+    uniform_l_global: Vector_3D
     uniform_M_pe: Matrix_4D
     uniform_M_sc: Matrix_4D
     uniform_M_pe_IT: Matrix_4D
@@ -303,7 +309,10 @@ class TangentNormalmapShader(gl.Shader):
         if self.mdl.normal_map_type != NormalMapType.TANGENT:
             raise ValueError("Only use tangent space normalmaps with this shader")
 
-        self.uniform_light_dir = light_dir
+        # Transform light vector
+        l_global = transform_3D4D3D(light_dir, Vector_4D_Type.DIRECTION, M_pe)
+        self.l_global = l_global.norm()
+
         self.uniform_M_pe = M_pe
         self.uniform_M_pe_IT = M_pe_IT
         self.uniform_M_viewport = M_viewport
@@ -312,17 +321,30 @@ class TangentNormalmapShader(gl.Shader):
         # Store triangle vertex (after being transformed to perspective)
         vertex = self.mdl.get_vertex(face_idx, vert_idx)
         vertex = transform_3D4D3D(vertex, Vector_4D_Type.POINT, self.uniform_M_pe)
-        self.varying_vert[vert_idx] = vertex
+        self.varying_vert = self.varying_vert.set_col(vert_idx, vertex)
 
-        nvert = self.mdl.get_normal(face_idx, vert_idx) # Read normal of the vertex
-        nvert = transform_3D4D3D(nvert, Vector_4D_Type.DIRECTION, self.uniform_M_pe_IT).norm()
+        n_tri = self.mdl.get_normal(face_idx, vert_idx) # Read normal of the vertex
+        n_tri = transform_3D4D3D(n_tri, Vector_4D_Type.DIRECTION, self.uniform_M_pe_IT).norm()
 
         # Store triangle vertex normal (after being transformed to perspective)
-        self.varying_nvert[vert_idx] = nvert
+        self.varying_normal = self.varying_normal.set_col(vert_idx, n_tri)
 
         # Get uv map point for diffuse color interpolation and store it
         self.varying_uv = \
             self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
+
+        if vert_idx == 2:
+            self.varying_b_u = Vector_3D(self.varying_uv.u2 - self.varying_uv.u0, \
+                                         self.varying_uv.u1 - self.varying_uv.u0, \
+                                         0)
+
+            self.varying_b_v = Vector_3D(self.varying_uv.v2 - self.varying_uv.v0, \
+                                         self.varying_uv.v1 - self.varying_uv.v0, \
+                                         0)
+
+            vd_0 = self.varying_vert.get_col(2) - self.varying_vert.get_col(0)
+            vd_1 = self.varying_vert.get_col(1) - self.varying_vert.get_col(0)
+            self.varying_A = (self.varying_A.set_row(0, vd_0)).set_row(1, vd_1)
 
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.uniform_M_viewport)
@@ -332,33 +354,25 @@ class TangentNormalmapShader(gl.Shader):
         p = self.varying_uv * bary
         p_uv = Point_UV(*p)
 
-        transposed_nvert, tr_nvert_shape = \
-            transpose(unpack_nested_iterable_to_list(self.varying_nvert), (3,3))
+        n_bary = Vector_3D(self.varying_normal * bary).norm()
 
-        n_bary, _ = matmul(transposed_nvert, tr_nvert_shape, barycentric, (3,1))
-        n_bary = Vector_3D(*n_bary).norm()
+        A_inv = self.varying_A.set_row(2, n_bary).inv()
 
-        A_inv = Matrix_3D([self.varying_vert[2] - self.varying_vert[0],
-                           self.varying_vert[1] - self.varying_vert[0],
-                           n_bary                                     ]).inv()
+        vect_i = (A_inv * self.varying_b_u).norm()
+        vect_j = (A_inv * self.varying_b_v).norm()
 
-        b_u = Vector_3D(self.varying_uv.u2 - self.varying_uv.u0, self.varying_uv.u1 - self.varying_uv.u0, 0)
-        b_v = Vector_3D(self.varying_uv.v2 - self.varying_uv.v0, self.varying_uv.v1 - self.varying_uv.v0, 0)
-
-        i = (A_inv * b_u).norm()
-        j = (A_inv * b_v).norm()
-
-        B = Matrix_3D([i     ,
-                       j     ,
+        B = Matrix_3D([vect_i,
+                       vect_j,
                        n_bary]).tr()
 
-        n = (B * self.mdl.get_normal_from_map(*p_uv)).norm() # Load normal of tangent space and multiply
-        
-        l = transform_3D4D3D(self.uniform_light_dir, Vector_4D_Type.DIRECTION, self.uniform_M_pe).norm()
-        n_l = n.tr() * l
-        diffuse_intensity = max(0, n_l) # Get diffuse lighting intensity
+         # Load normal of tangent space and transform to get global normal
+        n_global = (B * self.mdl.get_normal_from_map(*p_uv)).norm()
 
-        color = Vector_3D(255,255,255)#self.mdl.get_diffuse_color(*p_uv)
+        # Get diffuse lighting intensity
+        diffuse_intensity = max(0, n_global.tr() * self.l_global)
+
+        color = Vector_3D(255, 255, 255)#self.mdl.get_diffuse_color(*p_uv)
         color = diffuse_intensity * color // 1
-        
-        return (False, color) # Do not discard pixel and return color
+
+        # Do not discard pixel and return color
+        return (False, color)

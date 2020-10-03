@@ -7,9 +7,9 @@ from tiny_image import TinyImage
 import our_gl as gl
 from geom import Vector_3D
 from model import Model_Storage, NormalMapType
-from tiny_shaders import Flat_Shader, Gouraud_Shader, Gouraud_Shader_Segregated, \
-                         Diffuse_Gouraud_Shader, Global_Normalmap_Shader, Specularmap_Shader, \
-                         Tangent_Normalmap_Shader
+from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
+                         DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
+                         TangentNormalmapShader
 
 if __name__ == "__main__":
     # Model property selection
@@ -100,19 +100,19 @@ if __name__ == "__main__":
 
     SHADER_PROP_SET = 5
     if SHADER_PROP_SET == 0:
-        shader = Gouraud_Shader(mdl, LIGHT_DIR, M_sc)
+        shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
-        shader = Gouraud_Shader_Segregated(mdl, LIGHT_DIR, M_sc, 4)
+        shader = GouraudShaderSegregated(mdl, LIGHT_DIR, M_sc, 4)
     elif SHADER_PROP_SET == 2:
-        shader = Diffuse_Gouraud_Shader(mdl, LIGHT_DIR, M_sc)
+        shader = DiffuseGouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 3:
-        shader = Global_Normalmap_Shader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
+        shader = GlobalNormalmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 4:
-        shader = Specularmap_Shader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
+        shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 5:
-        shader = Tangent_Normalmap_Shader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
+        shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
     else:
-        shader = Flat_Shader(mdl, LIGHT_DIR, M_sc)
+        shader = FlatShader(mdl, LIGHT_DIR, M_sc)
 
     # Iterate model faces
     print("Drawing triangles ...")
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
-            screen_coords[face_vert_idx] = shader.vertex(face_idx, face_vert_idx)      
+            screen_coords[face_vert_idx] = shader.vertex(face_idx, face_vert_idx)
 
         # Rasterize triangle
         image = gl.draw_triangle(screen_coords, shader, zbuffer, image)
