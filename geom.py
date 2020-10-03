@@ -23,35 +23,35 @@ class NamedTupleMetaEx(typing.NamedTupleMeta):
 class MixinAlgebra(): 
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (coeffs, _) = matadd(list(self._asdict().values()), self._shape, 
+            (elems, _) = matadd(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
     
     def __sub__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
-            (coeffs, _) = matsub(list(self._asdict().values()), self._shape,
+            (elems, _) = matsub(list(self._asdict().values()), self._shape,
                                  list(other._asdict().values()), other._shape)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
 
     def __mul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (coeffs, _) = compmul(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compmul(list(self._asdict().values()), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
     
     def __rmul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (coeffs, _) = compmul(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compmul(list(self._asdict().values()), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
     
     def __truediv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (coeffs, _) = compdiv(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compdiv(list(self._asdict().values()), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
 
 
 class MixinMatrix(MixinAlgebra):
@@ -63,24 +63,24 @@ class MixinMatrix(MixinAlgebra):
 
     def __mul__(self, other):
         if  MixinVector in other.__class__.__bases__:
-            (coeffs, shape) = matmul(list(self._asdict().values()), self._shape, 
+            (elems, shape) = matmul(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape) 
                 
             if self.is_square():         
                 cl_type = globals()[other.__class__.__name__]
-                return cl_type(*coeffs)
+                return cl_type(*elems)
             else:
-                return coeffs, shape
+                return elems, shape
 
         elif MixinMatrix in other.__class__.__bases__:
-            (coeffs, shape) = matmul(list(self._asdict().values()), self._shape, 
+            (elems, shape) = matmul(list(self._asdict().values()), self._shape, 
                                      list(other._asdict().values()), other._shape)
             
             if self.is_square() and other.is_square():
                 cl_type = globals()[self.__class__.__name__]
-                return cl_type(*coeffs)
+                return cl_type(*elems)
             else:
-                return coeffs, shape
+                return elems, shape
     
     def __str__(self):
         prefix = self.__class__.__name__ + "("
@@ -92,23 +92,23 @@ class MixinMatrix(MixinAlgebra):
         return self._shape[0] == self._shape[1]
 
     def inv(self):
-        (coeffs, _) = inverse(self, self._shape)
+        (elems, _) = inverse(self, self._shape)
         cl_type = globals()[self.__class__.__name__]
-        return cl_type(*coeffs)
+        return cl_type(*elems)
 
     def tr(self):
-        (coeffs, _) = transpose(self, self._shape)
+        (elems, _) = transpose(self, self._shape)
         cl_type = globals()[self.__class__.__name__]
-        return cl_type(*coeffs)
+        return cl_type(*elems)
 
     def set_row(self, row_idx, other: list):
         (r,c) = self._shape
         if len(other) == c and row_idx < r:
-            coeffs = list(self._asdict().values())
+            elems = list(self._asdict().values())
             start_idx = row_idx * r
-            coeffs[start_idx : start_idx + len(other)] = other
+            elems[start_idx : start_idx + len(other)] = other
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs)
+            return cl_type(*elems)
     
     def set_col(self, col_idx, other: list):
         return self.tr().set_row(col_idx, other).tr()
@@ -129,9 +129,9 @@ class MixinVector(MixinAlgebra):
         if self.__class__.__name__ == other.__class__.__name__ and \
             self._shape[0] < other._shape[0]:
             # Calc scalar product
-            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, 
+            (elems, _) = matmul(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape)
-            return coeffs[0]
+            return elems[0]
             
         elif other.__class__.__name__ in ["float", "int"]:
             return super().__mul__(other)
@@ -139,17 +139,17 @@ class MixinVector(MixinAlgebra):
 
     def __floordiv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
-            (coeffs, _) = compfloor(list(self._asdict().values()), self._shape, other)
+            (elems, _) = compfloor(list(self._asdict().values()), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*coeffs, shape = self._shape)
+            return cl_type(*elems, shape = self._shape)
 
     def tr(self):
         # Transpose MixinVector
         (s,h) = self._shape
         
         cl_type = globals()[self.__class__.__name__]
-        coeffs = self._asdict().values()
-        return cl_type(*coeffs, shape = (h,s))
+        elems = self._asdict().values()
+        return cl_type(*elems, shape = (h,s))
 
 class Point_2D(MixinVector, metaclass=NamedTupleMetaEx):
     _shape = (2,1)
@@ -267,7 +267,7 @@ def matmul(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
         # Example: (3,4) * (4,6) -> will give 3 x 6; cols_0 rows_1 must match
         # Init coefficients x = rows(mat_0) * cols(mat_1)
 
-        coeffs = [None for i in range(rows_0 * cols_1)]
+        elems = [None for i in range(rows_0 * cols_1)]
         for row in range(rows_0):
             for col in range(cols_1):
                 su = 0
@@ -276,10 +276,10 @@ def matmul(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
                     c_0 = mat_0[row * cols_0 + it]
                     c_1 = mat_1[it * cols_1 + col]
                     su += c_0 * c_1
-                coeffs[row * cols_1 + col] = su
+                elems[row * cols_1 + col] = su
 
         # Return coefficients and shape tuple
-        return coeffs, (rows_0, cols_1)
+        return elems, (rows_0, cols_1)
 
 def transpose(mat: list, shape: tuple):
 
@@ -290,13 +290,13 @@ def transpose(mat: list, shape: tuple):
     else:
         pass
 
-    coeffs = [None for i in range(rows * cols)]
+    elems = [None for i in range(rows * cols)]
     for row in range(rows):
         for col in range(cols):
-            co = mat[row * cols + col] # Read row-wise
-            coeffs[col * rows + row] = co
+            e = mat[row * cols + col] # Read row-wise
+            elems[col * rows + row] = e
     
-    return coeffs, (cols, rows)
+    return elems, (cols, rows)
 
 def inverse(mat: list, shape:tuple):
     mr = np.linalg.inv(np.reshape(mat, shape))
