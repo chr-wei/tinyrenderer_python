@@ -1,3 +1,5 @@
+"""The geom module: Includes matrix and vector classes based on NamedTuple and basic algebra."""
+
 from typing import NamedTuple, NamedTupleMeta
 import typing
 from collections import namedtuple
@@ -8,7 +10,7 @@ from itertools import chain
 import operator
 from enum import Enum
 
-class MixinVector_4D_Type(Enum):
+class Vector_4D_Type(Enum):
     DIRECTION = 0
     POINT = 1
 
@@ -64,6 +66,12 @@ class MixinMatrix(MixinAlgebra):
             cl_type = globals()[other.__class__.__name__]
             return cl_type(*coeffs)
     
+    def __str__(self):
+        prefix = self.__class__.__name__ + "("
+        with np.printoptions(precision = 3, suppress = True):
+            npa = np.array(self).reshape(self._shape)
+            return prefix + np.array2string(npa, prefix=prefix) + ")"
+
     def inv(self):
         (coeffs, _) = inverse(self, self._shape)
         cl_type = globals()[self.__class__.__name__]
@@ -74,14 +82,26 @@ class MixinMatrix(MixinAlgebra):
         cl_type = globals()[self.__class__.__name__]
         return cl_type(*coeffs)
 
+    def set_row(self, row_idx, other: list):
+        (r,c) = self._shape
+        if len(other) == c and row_idx < r:
+            coeffs = list(self._asdict().values())
+            start_idx = row_idx * r
+            coeffs[start_idx : start_idx + len(other)] = other
+            cl_type = globals()[self.__class__.__name__]
+            return cl_type(*coeffs)
+    
+    def set_col(self, col_idx, other: list):
+        return self.tr().set_row(col_idx, other).tr()
+
 class MixinVector(MixinAlgebra):
     # Overwrite __new__ to add 'space' keyword parameter
     def __new__(self, *args, shape: tuple = None):
         return super().__new__(self, *args)
     
     def __init__(self, *args, shape: tuple = None):
-            if not shape is None:
-                self._shape = shape
+        if not shape is None:
+            self._shape = shape
 
     def __mul__(self, other):     
         if self.__class__.__name__ == other.__class__.__name__ and \
@@ -121,7 +141,7 @@ class Barycentric(MixinVector, metaclass=NamedTupleMetaEx):
     one_u_v: float
     u: float
     v: float
-class MixinVector_3D(MixinVector, metaclass=NamedTupleMetaEx):
+class Vector_3D(MixinVector, metaclass=NamedTupleMetaEx):
     _shape = (3,1)
     x: float
     y: float
@@ -133,10 +153,10 @@ class MixinVector_3D(MixinVector, metaclass=NamedTupleMetaEx):
         else:
             new_shape = (1,4)
 
-        if vtype == MixinVector_4D_Type.DIRECTION:
-            return MixinVector_4D(self.x, self.y, self.z, 0, shape = new_shape)
-        elif vtype == MixinVector_4D_Type.POINT:
-            return MixinVector_4D(self.x, self.y, self.z, 1, shape = new_shape)
+        if vtype == Vector_4D_Type.DIRECTION:
+            return Vector_4D(self.x, self.y, self.z, 0, shape = new_shape)
+        elif vtype == Vector_4D_Type.POINT:
+            return Vector_4D(self.x, self.y, self.z, 1, shape = new_shape)
 
     def abs(self):
         return math.sqrt(self.x**2 + self.y**2 + self.z**2)
@@ -148,7 +168,7 @@ class MixinVector_3D(MixinVector, metaclass=NamedTupleMetaEx):
         else:
             return None
 
-class MixinVector_4D(MixinVector, metaclass=NamedTupleMetaEx):
+class Vector_4D(MixinVector, metaclass=NamedTupleMetaEx):
     _shape = (4,1)
     _space = None
     x: float
@@ -162,10 +182,10 @@ class MixinVector_4D(MixinVector, metaclass=NamedTupleMetaEx):
         else:
             new_shape = (1,3)
 
-        if vtype == MixinVector_4D_Type.DIRECTION:
-            return MixinVector_3D(self.x, self.y, self.z, shape = new_shape)
-        elif vtype == MixinVector_4D_Type.POINT:
-            return MixinVector_3D(self.x / self.a, self.y / self.a, self.z / self.a, space = new_shape)
+        if vtype == Vector_4D_Type.DIRECTION:
+            return Vector_3D(self.x, self.y, self.z, shape = new_shape)
+        elif vtype == Vector_4D_Type.POINT:
+            return Vector_3D(self.x / self.a, self.y / self.a, self.z / self.a, shape = new_shape)
 
 class Matrix_3D(MixinMatrix, metaclass=NamedTupleMetaEx):
     _shape = (3, 3)
@@ -197,7 +217,6 @@ class Matrix_4D(MixinMatrix, metaclass=NamedTupleMetaEx):
     a42: float
     a43: float
     a44: float
-
 
 def matmul(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
     
@@ -248,25 +267,25 @@ def inverse(mat: list, shape:tuple):
     mr = np.linalg.inv(np.reshape(mat, shape))
     return mr.flatten().tolist(), shape
 
-def cross_product(v0: MixinVector_3D, v1: MixinVector_3D):
+def cross_product(v0: Vector_3D, v1: Vector_3D):
     c0 = v0.y*v1.z - v0.z*v1.y
     c1 = v0.z*v1.x - v0.x*v1.z
     c2 = v0.x*v1.y - v0.y*v1.x
-    return MixinVector_3D(c0, c1, c2)
+    return Vector_3D(c0, c1, c2)
 
 def comp_min(v0, v1):
-    return MixinVector_3D(min(v0.x, v1.x), min(v0.y, v1.y), min(v0.z, v1.z))
+    return Vector_3D(min(v0.x, v1.x), min(v0.y, v1.y), min(v0.z, v1.z))
     
 def comp_max(v0, v1):
-    return MixinVector_3D(max(v0.x, v1.x), max(v0.y, v1.y), max(v0.z, v1.z))
+    return Vector_3D(max(v0.x, v1.x), max(v0.y, v1.y), max(v0.z, v1.z))
 
-def transform_vertex_to_screen(v : MixinVector_3D, M: Matrix_4D):
-    v = transform_3D4D3D(v, MixinVector_4D_Type.POINT, M)
+def transform_vertex_to_screen(v : Vector_3D, M: Matrix_4D):
+    v = transform_3D4D3D(v, Vector_4D_Type.POINT, M)
     vz = v.z
     v = v // 1
-    return MixinVector_3D(v.x, v.y, vz)
+    return Vector_3D(v.x, v.y, vz)
 
-def transform_3D4D3D(v: MixinVector_3D, vtype: MixinVector_4D_Type, M: Matrix_4D):
+def transform_3D4D3D(v: Vector_3D, vtype: Vector_4D_Type, M: Matrix_4D):
     v = M * v.expand_4D(vtype)
     return v.project_3D(vtype)
 
