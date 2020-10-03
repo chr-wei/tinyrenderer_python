@@ -38,7 +38,7 @@ class MixinAlgebra():
     def __mul__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
             (coeffs, _) = compmul(list(self._asdict().values()), self._shape, other)
-            cl_type = globals()[other.__class__.__name__]
+            cl_type = globals()[self.__class__.__name__]
             return cl_type(*coeffs)
     
     def __rmul__(self, other):
@@ -46,6 +46,13 @@ class MixinAlgebra():
             (coeffs, _) = compmul(list(self._asdict().values()), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*coeffs)
+    
+    def __truediv__(self, other):
+        if other.__class__.__name__ in ["float", "int"]:
+            (coeffs, _) = compdiv(list(self._asdict().values()), self._shape, other)
+            cl_type = globals()[self.__class__.__name__]
+            return cl_type(*coeffs)
+
 
 class MixinMatrix(MixinAlgebra):
     def __new__(cls, *args):
@@ -124,8 +131,10 @@ class MixinVector(MixinAlgebra):
             # Calc scalar product
             (coeffs, _) = matmul(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape)
-
             return coeffs[0]
+            
+        elif other.__class__.__name__ in ["float", "int"]:
+            return super().__mul__(other)
 
 
     def __floordiv__(self, other):
@@ -334,6 +343,17 @@ def compmul(mat_0: list, shape_0: tuple, c: float):
         # Return coefficients and shape tuple
         return [e * c for e in mat_0], shape_0
 
+def compdiv(mat_0: list, shape_0: tuple, c: float):
+
+    (rows_0, cols_0) = shape_0
+
+    if len(mat_0) != (rows_0 * cols_0):
+        # Indices to not match to perform matrix substraction
+        raise(ShapeMissmatchException)
+    else:
+        # Return coefficients and shape tuple
+        return [e / c for e in mat_0], shape_0
+
 def compfloor(mat_0: list, shape_0: tuple, c: float):
 
     (rows_0, cols_0) = shape_0
@@ -343,7 +363,7 @@ def compfloor(mat_0: list, shape_0: tuple, c: float):
         raise(ShapeMissmatchException)
     else:
         # Return coefficients and shape tuple
-        return [e // c for e in mat_0], shape_0
+        return [int(e // c) for e in mat_0], shape_0
 
 def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
 
