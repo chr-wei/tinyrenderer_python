@@ -78,6 +78,12 @@ class MixinAlgebra():
             return list(self._asdict().values())[0]
         else:
             return list(self._asdict().values())
+    
+    def __str__(self):
+        prefix = self.__class__.__name__ + "("
+        with np.printoptions(precision = 3, suppress = True):
+            npa = np.array(self).reshape(self._shape)
+            return prefix + np.array2string(npa, prefix=prefix) + ")"
 
 
 class MixinMatrix(MixinAlgebra):
@@ -100,12 +106,6 @@ class MixinMatrix(MixinAlgebra):
                 return cl_type(*elems)
             else:
                 return Matrix_NxN(elems, shape = s)
-    
-    def __str__(self):
-        prefix = self.__class__.__name__ + "("
-        with np.printoptions(precision = 3, suppress = True):
-            npa = np.array(self).reshape(self._shape)
-            return prefix + np.array2string(npa, prefix=prefix) + ")"
 
     def is_square(self):
         return self._shape[0] == self._shape[1]
