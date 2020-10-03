@@ -15,12 +15,26 @@ class Vector_4D_Type(Enum):
     POINT = 1
 
 class NamedTupleMetaEx(typing.NamedTupleMeta):
-    def __new__(cls, typename, bases, ns):
-        cls_obj = super().__new__(cls, typename+'_nm_base', bases, ns)
+    def __new__(self, typename, bases, ns):
+        cls_obj = super().__new__(self, typename+'_nm_base', bases, ns)
         bases = bases + (cls_obj,)
         return type(typename, bases, {})
 
 class MixinAlgebra(): 
+    def __new__(self, *args, shape: tuple = None):
+        if len(args) == 1 and isinstance(args[0], list):
+            if len(self._fields) > 1:
+                return super().__new__(self, *unpack_nested_iterable_to_list(args))
+            else:
+                return super().__new__(self, unpack_nested_iterable_to_list(args))
+        else:
+            return super().__new__(self, *args)
+    
+    # Overwrite __init__ to add 'shape' keyword parameter
+    def __init__(self, *args, shape: tuple = None):
+        if not shape is None:
+            self._shape = shape
+
     def __add__(self, other):
         if other.__class__.__name__ == self.__class__.__name__:
             (elems, _) = matadd(list(self._asdict().values()), self._shape, 
@@ -55,32 +69,25 @@ class MixinAlgebra():
 
 
 class MixinMatrix(MixinAlgebra):
-    def __new__(cls, *args):
-        if len(args) > 0 and isinstance(args[0], list):
-            return super().__new__(cls, *unpack_nested_iterable_to_list(*args))
-        else:
-            return super().__new__(cls, *args)
-
     def __mul__(self, other):
         if  MixinVector in other.__class__.__bases__:
-            (elems, shape) = matmul(list(self._asdict().values()), self._shape, 
+            (elems, s) = matmul(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape) 
-                
             if self.is_square():         
                 cl_type = globals()[other.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return elems, shape
+                return Matrix_NxN(elems, shape = s)
 
         elif MixinMatrix in other.__class__.__bases__:
-            (elems, shape) = matmul(list(self._asdict().values()), self._shape, 
+            (elems, s) = matmul(list(self._asdict().values()), self._shape, 
                                      list(other._asdict().values()), other._shape)
             
             if self.is_square() and other.is_square():
                 cl_type = globals()[self.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return elems, shape
+                return Matrix_NxN(elems, shape = s)
     
     def __str__(self):
         prefix = self.__class__.__name__ + "("
@@ -97,34 +104,27 @@ class MixinMatrix(MixinAlgebra):
         return cl_type(*elems)
 
     def tr(self):
-        (elems, _) = transpose(self, self._shape)
+        (elems, shape) = transpose(self, self._shape)
         cl_type = globals()[self.__class__.__name__]
-        return cl_type(*elems)
+        return cl_type(*elems, shape = shape)
 
-    def set_row(self, row_idx, other: list):
+    def set_row(self, row_idx, other: Iterable):
         (r,c) = self._shape
+        li = unpack_nested_iterable_to_list(other)
+
         if len(other) == c and row_idx < r:
             elems = list(self._asdict().values())
             start_idx = row_idx * r
-            elems[start_idx : start_idx + len(other)] = other
+            elems[start_idx : start_idx + len(li)] = li
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
+        else:
+            raise ShapeMissmatchException
     
-    def set_col(self, col_idx, other: list):
+    def set_col(self, col_idx, other: Iterable):
         return self.tr().set_row(col_idx, other).tr()
 
 class MixinVector(MixinAlgebra):
-    # Overwrite __new__ to add 'space' keyword parameter
-    def __new__(self, *args, shape: tuple = None):
-        if len(args) > 0 and isinstance(args[0], Iterable):
-            return super().__new__(self, *unpack_nested_iterable_to_list(*args))
-        else:
-            return super().__new__(self, *args)
-    
-    def __init__(self, *args, shape: tuple = None):
-        if not shape is None:
-            self._shape = shape
-
     def __mul__(self, other):     
         if self.__class__.__name__ == other.__class__.__name__ and \
             self._shape[0] < other._shape[0]:
@@ -135,7 +135,6 @@ class MixinVector(MixinAlgebra):
             
         elif other.__class__.__name__ in ["float", "int"]:
             return super().__mul__(other)
-
 
     def __floordiv__(self, other):
         if other.__class__.__name__ in ["float", "int"]:
@@ -212,14 +211,9 @@ class Vector_4D(MixinVector, metaclass=NamedTupleMetaEx):
         elif vtype == Vector_4D_Type.POINT:
             return Vector_3D(self.x / self.a, self.y / self.a, self.z / self.a, shape = new_shape)
 
-class Matrix_2x3(MixinMatrix, metaclass=NamedTupleMetaEx):
-    _shape = (2, 3)
-    a11: float
-    a12: float
-    a13: float
-    a21: float
-    a22: float
-    a23: float
+class Matrix_NxN(MixinMatrix, metaclass=NamedTupleMetaEx):
+    _shape = None
+    elems: list
 
 
 class Matrix_3D(MixinMatrix, metaclass=NamedTupleMetaEx):
@@ -324,13 +318,11 @@ def transform_3D4D3D(v: Vector_3D, vtype: Vector_4D_Type, M: Matrix_4D):
     v = M * v.expand_4D(vtype)
     return v.project_3D(vtype)
 
-def unpack_nested_iterable_to_list(parent_it: Iterable):
-    if any(isinstance(elem, Iterable) for elem in parent_it):
+def unpack_nested_iterable_to_list(it: Iterable):
+    while any(isinstance(e, Iterable) for e in it):
         # An iterable is nested in the parent iterable
-        return list(chain.from_iterable(parent_it))
-    else:
-        # No nested iterable - return parent iterable
-        return parent_it
+        it = list(chain.from_iterable(it))
+    return it
 
 def compmul(mat_0: list, shape_0: tuple, c: float):
 
