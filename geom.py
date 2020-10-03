@@ -48,29 +48,41 @@ class MixinAlgebra():
             return cl_type(*coeffs)
 
 class MixinMatrix(MixinAlgebra):
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args):
         if len(args) > 0 and isinstance(args[0], list):
             return super().__new__(cls, *unpack_nested_iterable_to_list(*args))
         else:
             return super().__new__(cls, *args)
 
     def __mul__(self, other):
-        if  other.__class__.__name__ [:6] == "MixinVector":
-            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, 
-                                 list(other._asdict().values()), other._shape)
-            cl_type = globals()[other.__class__.__name__]
-            return cl_type(*coeffs)
-        elif self.__class__.__name__ == other.__class__.__name__:
-            (coeffs, _) = matmul(list(self._asdict().values()), self._shape, 
-                                 list(other._asdict().values()), other._shape)
-            cl_type = globals()[other.__class__.__name__]
-            return cl_type(*coeffs)
+        if  MixinVector in other.__class__.__bases__:
+            (coeffs, shape) = matmul(list(self._asdict().values()), self._shape, 
+                                 list(other._asdict().values()), other._shape) 
+                
+            if self.is_square():         
+                cl_type = globals()[other.__class__.__name__]
+                return cl_type(*coeffs)
+            else:
+                return coeffs, shape
+
+        elif MixinMatrix in other.__class__.__bases__:
+            (coeffs, shape) = matmul(list(self._asdict().values()), self._shape, 
+                                     list(other._asdict().values()), other._shape)
+            
+            if self.is_square() and other.is_square():
+                cl_type = globals()[self.__class__.__name__]
+                return cl_type(*coeffs)
+            else:
+                return coeffs, shape
     
     def __str__(self):
         prefix = self.__class__.__name__ + "("
         with np.printoptions(precision = 3, suppress = True):
             npa = np.array(self).reshape(self._shape)
             return prefix + np.array2string(npa, prefix=prefix) + ")"
+
+    def is_square(self):
+        return self._shape[0] == self._shape[1]
 
     def inv(self):
         (coeffs, _) = inverse(self, self._shape)
@@ -97,7 +109,10 @@ class MixinMatrix(MixinAlgebra):
 class MixinVector(MixinAlgebra):
     # Overwrite __new__ to add 'space' keyword parameter
     def __new__(self, *args, shape: tuple = None):
-        return super().__new__(self, *args)
+        if len(args) > 0 and isinstance(args[0], Iterable):
+            return super().__new__(self, *unpack_nested_iterable_to_list(*args))
+        else:
+            return super().__new__(self, *args)
     
     def __init__(self, *args, shape: tuple = None):
         if not shape is None:
@@ -106,6 +121,7 @@ class MixinVector(MixinAlgebra):
     def __mul__(self, other):     
         if self.__class__.__name__ == other.__class__.__name__ and \
             self._shape[0] < other._shape[0]:
+            # Calc scalar product
             (coeffs, _) = matmul(list(self._asdict().values()), self._shape, 
                                  list(other._asdict().values()), other._shape)
 
@@ -186,6 +202,16 @@ class Vector_4D(MixinVector, metaclass=NamedTupleMetaEx):
             return Vector_3D(self.x, self.y, self.z, shape = new_shape)
         elif vtype == Vector_4D_Type.POINT:
             return Vector_3D(self.x / self.a, self.y / self.a, self.z / self.a, shape = new_shape)
+
+class Matrix_2x3(MixinMatrix, metaclass=NamedTupleMetaEx):
+    _shape = (2, 3)
+    a11: float
+    a12: float
+    a13: float
+    a21: float
+    a22: float
+    a23: float
+
 
 class Matrix_3D(MixinMatrix, metaclass=NamedTupleMetaEx):
     _shape = (3, 3)
