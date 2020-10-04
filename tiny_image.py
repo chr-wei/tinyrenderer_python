@@ -1,37 +1,46 @@
+"""tiny_image module for TinyImage class used in tiny_renderer."""
 from PIL import Image
 from PIL import ImageDraw
 
 class TinyImage:
-    """Get a new image canvas to draw on."""
+    """
+    This is the TinyImage class.
+
+    Examples:
+        new_image = TinyImage(100, 100)
+        new_image = TinyImage().load_image("path/to/image/tiny.png")
+        new_image = new_image.set(x = 10, y = 100, color = 'white')
+    """
+
+    _im: Image
+    _draw: ImageDraw
 
     def __init__(self, width = None, height = None):
-        if width != None and height != None:
+        if not width is None and not height is None:
             self._im = Image.new(size=(width, height), mode="RGB")
             self._draw = ImageDraw.Draw(self._im)
-            self.width = self._im.width
-            self.height = self._im.height
 
     def load_image(self, ipath):
-        self._im = Image.open(ipath).transpose(Image.FLIP_TOP_BOTTOM)
-        self._width = self._im.width
-        self._height = self._im.height
+        """Loads image from disk."""
+        self._im = Image.open(ipath)
 
-    def set(self, x, y, color):
+    def set(self, x, y, color): # pylint: disable=invalid-name
         """Draw a point onto the image."""
-        self._draw.point((x,y), fill=color)
+        self._draw.point((x, self.get_height() - y - 1), fill = color)
 
-    def get(self, x, y):
+    def get(self, x, y): # pylint: disable=invalid-name
         """Read color of image."""
         # Read pixel color.
-        return self._im.getpixel((x,y))
+        return self._im.getpixel((x, self.get_height() - y - 1))
 
     def save_to_disk(self, fname):
         """Save your image to a given filename."""
-        imc = self._im.copy()
-        imc.transpose(Image.FLIP_TOP_BOTTOM).save(fname)
-    
+        self._im.save(fname)
+
     def get_width(self):
+        """Get width of image."""
         return self._im.width
 
     def get_height(self):
+        """Get height of image."""
         return self._im.height
