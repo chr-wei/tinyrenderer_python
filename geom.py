@@ -101,6 +101,38 @@ class MixinAlgebra():
             npa = np.array(self).reshape(self._shape)
             return prefix + np.array2string(npa, prefix=prefix) + ")"
 
+    def get_row(self, row_idx):
+        """Returns content of row as MatrixNxN object."""
+        (rows, cols) = self._shape
+        elems = self.get_field_values()
+        start_idx = row_idx * rows
+        return MatrixNxN(elems[start_idx:start_idx+cols], shape = (1, cols))
+
+    def get_col(self, col_idx):
+        """Returns content of column as MatrixNxN oject."""
+        return self.tr().get_row(col_idx)
+
+    def set_row(self, row_idx, other):
+        """Returns same object type with replaced row content."""
+        (rows, cols) = self._shape
+        if isinstance(other, Iterable):
+            lst = unpack_nested_iterable_to_list(other)
+        else:
+            lst = [other]
+
+        if len(lst) == cols and row_idx < rows:
+            elems = self.get_field_values()
+            start_idx = row_idx * cols
+            elems[start_idx:start_idx+cols] = lst
+            cl_type = globals()[self.__class__.__name__]
+            return cl_type(*elems, shape = self._shape)
+
+        raise ShapeMissmatchException
+
+    def set_col(self, col_idx, other: Iterable):
+        """Returns same object type with replaced col content."""
+        return self.tr().set_row(col_idx, other).tr()
+
 
 class MixinMatrix(MixinAlgebra):
     """Mixin providing additional functionalty for matrices based on typing.NamedTuple."""
@@ -139,35 +171,6 @@ class MixinMatrix(MixinAlgebra):
         (elems, shape) = transpose(self.get_field_values(), self._shape)
         cl_type = globals()[self.__class__.__name__]
         return cl_type(*elems, shape = shape)
-
-    def get_row(self, row_idx):
-        """Returns content of row as MatrixNxN object."""
-        (rows, cols) = self._shape
-        elems = self.get_field_values()
-        start_idx = row_idx * rows
-        return MatrixNxN(elems[start_idx:start_idx+cols], shape = (1, cols))
-
-    def get_col(self, col_idx):
-        """Returns content of column as MatrixNxN oject."""
-        return self.tr().get_row(col_idx)
-
-    def set_row(self, row_idx, other: Iterable):
-        """Returns same object type with replaced row content."""
-        (rows, cols) = self._shape
-        lst = unpack_nested_iterable_to_list(other)
-
-        if len(lst) == cols and row_idx < rows:
-            elems = self.get_field_values()
-            start_idx = row_idx * cols
-            elems[start_idx:start_idx+cols] = lst
-            cl_type = globals()[self.__class__.__name__]
-            return cl_type(*elems, shape = self._shape)
-        else:
-            raise ShapeMissmatchException
-
-    def set_col(self, col_idx, other: Iterable):
-        """Returns same object type with replaced col content."""
-        return self.tr().set_row(col_idx, other).tr()
 
 class MixinVector(MixinAlgebra):
     """Mixin providing additional functionalty for vectors based on typing.NamedTuple."""

@@ -49,7 +49,9 @@ class FlatShader(gl.Shader):
 class GouraudShader(gl.Shader):
     """Shader which interpolates normals of triangle vertices."""
     mdl: ModelStorage
-    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
+
+    # Written by vertex shader, read by fragment shader
+    varying_intensity = Vector3D(0, 0, 0, shape = (1,3))
     light_dir: Vector3D
     M: Matrix4D
 
@@ -59,10 +61,11 @@ class GouraudShader(gl.Shader):
         self.M = M # pylint: disable=invalid-name
 
     def vertex(self, face_idx: int, vert_idx: int):
-        n = self.mdl.get_normal(face_idx, vert_idx) # pylint: disable=invalid-name
+        n_tri = self.mdl.get_normal(face_idx, vert_idx)
 
         # Get diffuse lighting intensity
-        self.varying_intensity[vert_idx] = max(0, n.tr() * self.light_dir)
+        cos_phi = max(0, n_tri.tr() * self.light_dir)
+        self.varying_intensity = self.varying_intensity.set_col(vert_idx, cos_phi)
 
          # Read the vertex data and return
         vertex = self.mdl.get_vertex(face_idx, vert_idx)
@@ -71,9 +74,7 @@ class GouraudShader(gl.Shader):
         return transform_vertex_to_screen(vertex, self.M)
 
     def fragment(self, bary: Barycentric):
-        intensity = self.varying_intensity[0]*bary[0] \
-                  + self.varying_intensity[1]*bary[1] \
-                  + self.varying_intensity[2]*bary[2]
+        intensity = self.varying_intensity * bary
 
         # Interpolate intensity for the current pixel
         color = (Vector3D(255, 255, 255) * intensity) // 1
@@ -83,9 +84,8 @@ class GouraudShader(gl.Shader):
 
 class GouraudShaderSegregated(gl.Shader):
     """Gouraud shader with distinct, segregated grey tones."""
-
     mdl: ModelStorage
-    varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
+    varying_intensity = Vector3D(0, 0, 0, shape = (1,3))
     light_dir: Vector3D
     M: Matrix4D
     segregate_count = 1
@@ -100,17 +100,17 @@ class GouraudShaderSegregated(gl.Shader):
         n_tri = self.mdl.get_normal(face_idx, vert_idx)
 
         # Get diffuse lighting intensity
-        self.varying_intensity[vert_idx] = max(0, n_tri.tr() * self.light_dir)
-        vertex = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        cos_phi = max(0, n_tri.tr() * self.light_dir)
+        self.varying_intensity = self.varying_intensity.set_col(vert_idx, cos_phi)
+
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
 
         # Transform it to screen coordinates
-        return transform_vertex_to_screen(vertex, self.M)
+        return transform_vertex_to_screen(vert, self.M)
 
     def fragment(self, bary: Barycentric):
         # Interpolate intensity for current pixel
-        intensity = self.varying_intensity[0]*bary[0] \
-                  + self.varying_intensity[1]*bary[1] \
-                  + self.varying_intensity[2]*bary[2]
+        intensity = self.varying_intensity * bary
 
         # Segregates intensity values to n = 'segregate_count' distinct values
         intensity = round(intensity * self.segregate_count) / self.segregate_count
