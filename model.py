@@ -4,7 +4,7 @@ from enum import Enum
 from collections import namedtuple
 from tiny_image import TinyImage
 
-from geom import Vector3D, Point2D, comp_min, comp_max
+from geom import Vector3D, Point2D, PointUV, comp_min, comp_max
 
 VertexIds = namedtuple("VertexIds", "id_one id_two id_three")
 DiffusePointIds = namedtuple("DiffusePointIds", "id_one id_two id_three")
@@ -186,24 +186,24 @@ class ModelStorage():
         diffuse_idx = self.face_id_data[face_idx].DiffusePointIds[face_vertex_idx]
         return self.diffuse_points[diffuse_idx]
 
-    def get_diffuse_color(self, rel_x, rel_y):
+    def get_diffuse_color(self, pnt: PointUV):
         """Returns diffuse color from texture map."""
         # Make sure to only use RGB components in Vector3D
-        return Vector3D(*self.diffuse_map.get(int(rel_x * self.diffuse_map.get_width()),
-                                               int(rel_y * self.diffuse_map.get_height()))[:3])
+        return Vector3D(self.diffuse_map.get(int(pnt.u * self.diffuse_map.get_width()),
+                                             int(pnt.v * self.diffuse_map.get_height()))[:3])
 
-    def get_normal_from_map(self, rel_x, rel_y):
+    def get_normal_from_map(self, pnt: PointUV):
         """Returns normal from model normalmap."""
         # Make sure to only use RGB components in Vector3D
-        rgb = Vector3D(*self.normal_map.get(int(rel_x * self.normal_map.get_width()),
-                                            int(rel_y * self.normal_map.get_height()))[:3])
+        rgb = Vector3D(*self.normal_map.get(int(pnt.u * self.normal_map.get_width()),
+                                            int(pnt.v * self.normal_map.get_height()))[:3])
         return (rgb / 255 * 2 - Vector3D(1, 1, 1)).normalize()
 
-    def get_specular_power_from_map(self, rel_x, rel_y):
+    def get_specular_power_from_map(self, pnt: PointUV):
         """Returns specular power coefficient from specular map."""
         # Make sure to only use GRAY component
-        comp = self.specular_map.get(int(rel_x * self.specular_map.get_width()),
-                                     int(rel_y * self.specular_map.get_height()))
+        comp = self.specular_map.get(int(pnt.u * self.specular_map.get_width()),
+                                     int(pnt.v * self.specular_map.get_height()))
         if comp is tuple:
             comp = comp[0]
         return comp
