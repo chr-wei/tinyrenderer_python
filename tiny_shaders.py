@@ -8,11 +8,11 @@ from geom import Matrix4D, Matrix3D, MatrixUV, \
                  transform_3D4D3D, transform_vertex_to_screen, \
                  cross_product, matmul, transpose, comp_min
 
-from model import Model_Storage, NormalMapType
+from model import ModelStorage, NormalMapType
 
 class FlatShader(gl.Shader):
     """Shader which creates a paperfold effect."""
-    mdl: Model_Storage
+    mdl: ModelStorage
     varying_vertex = [Vector3D(0,0,0)] * 3 # Written by vertex shader, read by fragment shader
     light_dir: Vector3D
     M: Matrix4D
@@ -36,19 +36,19 @@ class FlatShader(gl.Shader):
 
         return transform_vertex_to_screen(vertex, self.M) # Transform it to screen coordinates
 
-    def fragment(self, barycentric: tuple):
+    def fragment(self, bary: Barycentric):
         if self.n is None:
             return(True, None) # discard pixel
-        else:
-            cos_phi = self.n.tr() * self.light_dir
-            cos_phi = 0 if cos_phi < 0 else cos_phi
 
-            color = (Vector3D(255, 255, 255) * cos_phi) // 1
-            return (False, color) # Do not discard pixel and return color
+        cos_phi = self.n.tr() * self.light_dir
+        cos_phi = 0 if cos_phi < 0 else cos_phi
+
+        color = (Vector3D(255, 255, 255) * cos_phi) // 1
+        return (False, color) # Do not discard pixel and return color
 
 class GouraudShader(gl.Shader):
     """Shader which interpolates normals of triangle vertices."""
-    mdl: Model_Storage
+    mdl: ModelStorage
     varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
     light_dir: Vector3D
     M: Matrix4D
@@ -70,10 +70,10 @@ class GouraudShader(gl.Shader):
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.M)
 
-    def fragment(self, barycentric: tuple):
-        intensity = self.varying_intensity[0]*barycentric[0] \
-                  + self.varying_intensity[1]*barycentric[1] \
-                  + self.varying_intensity[2]*barycentric[2]
+    def fragment(self, bary: Barycentric):
+        intensity = self.varying_intensity[0]*bary[0] \
+                  + self.varying_intensity[1]*bary[1] \
+                  + self.varying_intensity[2]*bary[2]
 
         # Interpolate intensity for the current pixel
         color = (Vector3D(255, 255, 255) * intensity) // 1
@@ -84,7 +84,7 @@ class GouraudShader(gl.Shader):
 class GouraudShaderSegregated(gl.Shader):
     """Gouraud shader with distinct, segregated grey tones."""
 
-    mdl: Model_Storage
+    mdl: ModelStorage
     varying_intensity = [None] * 3 # Written by vertex shader, read by fragment shader
     light_dir: Vector3D
     M: Matrix4D
@@ -106,11 +106,11 @@ class GouraudShaderSegregated(gl.Shader):
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.M)
 
-    def fragment(self, barycentric: tuple):
+    def fragment(self, bary: Barycentric):
         # Interpolate intensity for current pixel
-        intensity = self.varying_intensity[0]*barycentric[0] \
-                  + self.varying_intensity[1]*barycentric[1] \
-                  + self.varying_intensity[2]*barycentric[2]
+        intensity = self.varying_intensity[0]*bary[0] \
+                  + self.varying_intensity[1]*bary[1] \
+                  + self.varying_intensity[2]*bary[2]
 
         # Segregates intensity values to n = 'segregate_count' distinct values
         intensity = round(intensity * self.segregate_count) / self.segregate_count
@@ -122,7 +122,7 @@ class GouraudShaderSegregated(gl.Shader):
 
 class DiffuseGouraudShader(gl.Shader):
     """Shader which combines Gouraud shading and diffuse texture color."""
-    mdl: Model_Storage
+    mdl: ModelStorage
 
     # Written by vertex shader, read by fragment shader: varying_data
     varying_intensity = [None] * 3
@@ -153,15 +153,15 @@ class DiffuseGouraudShader(gl.Shader):
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.M)
 
-    def fragment(self, barycentric: tuple):
+    def fragment(self, bary: Barycentric):
         # Interpolate intensity for the current pixel
-        intensity = self.varying_intensity[0]*barycentric[0] \
-                  + self.varying_intensity[1]*barycentric[1] \
-                  + self.varying_intensity[2]*barycentric[2]
+        intensity = self.varying_intensity[0]*bary[0] \
+                  + self.varying_intensity[1]*bary[1] \
+                  + self.varying_intensity[2]*bary[2]
 
-        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+        # For interpolation with bary coordinates we need a 2 rows x 3 columns matrix
         transposed_uv, tr_uv_shape = transpose(self.varying_uv, self.varying_uv_shape)
-        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, bary, (3,1))
 
         p_uv = Point2D(*p_uv)
 
@@ -173,7 +173,7 @@ class DiffuseGouraudShader(gl.Shader):
 
 class GlobalNormalmapShader(gl.Shader):
     """Shader reading a global space normal map to increase detail."""
-    mdl: Model_Storage
+    mdl: ModelStorage
 
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point2D(0,0)] * 3
@@ -203,10 +203,10 @@ class GlobalNormalmapShader(gl.Shader):
          # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.uniform_M_sc)
 
-    def fragment(self, barycentric: tuple):
-        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+    def fragment(self, bary: Barycentric):
+        # For interpolation with bary coordinates we need a 2 rows x 3 columns matrix
         transposed_uv, tr_uv_shape = transpose(self.varying_uv, (3,2))
-        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, bary, (3,1))
 
         p_uv = Point2D(*p_uv)
 
@@ -227,7 +227,7 @@ class GlobalNormalmapShader(gl.Shader):
 
 class SpecularmapShader(gl.Shader):
     """Shader combining global normal map shading and specular lighting."""
-    mdl: Model_Storage
+    mdl: ModelStorage
 
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = [Point2D(0,0)] * 3
@@ -257,10 +257,10 @@ class SpecularmapShader(gl.Shader):
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.uniform_M_sc)
 
-    def fragment(self, barycentric: tuple):
-        # For interpolation with barycentric coordinates we need a 2 rows x 3 columns matrix
+    def fragment(self, bary: Barycentric):
+        # For interpolation with bary coordinates we need a 2 rows x 3 columns matrix
         transposed_uv, tr_uv_shape = transpose(self.varying_uv, (3,2))
-        p_uv, _ = matmul(transposed_uv, tr_uv_shape, barycentric, (3,1))
+        p_uv, _ = matmul(transposed_uv, tr_uv_shape, bary, (3,1))
 
         n_global = self.mdl.get_normal_from_map(*p_uv)
         n_local = transform_3D4D3D(n_global, Vector4DType.DIRECTION, \
@@ -289,7 +289,7 @@ class SpecularmapShader(gl.Shader):
 
 class TangentNormalmapShader(gl.Shader):
     """Shader equal to GlobalNormalmapShader but with tangent space normal map."""
-    mdl: Model_Storage
+    mdl: ModelStorage
 
     # Points in varying_uv are stacked row-wise, 3 rows x 2 columns
     varying_uv = MatrixUV(6*[0])
@@ -338,12 +338,12 @@ class TangentNormalmapShader(gl.Shader):
             self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
 
         if vert_idx == 2:
-            self.varying_b_u = Vector3D(self.varying_uv.u2 - self.varying_uv.u0, \
-                                         self.varying_uv.u1 - self.varying_uv.u0, \
+            self.varying_b_u = Vector3D(self.varying_uv.u_2 - self.varying_uv.u_0, \
+                                         self.varying_uv.u_1 - self.varying_uv.u_0, \
                                          0)
 
-            self.varying_b_v = Vector3D(self.varying_uv.v2 - self.varying_uv.v0, \
-                                         self.varying_uv.v1 - self.varying_uv.v0, \
+            self.varying_b_v = Vector3D(self.varying_uv.v_2 - self.varying_uv.v_0, \
+                                         self.varying_uv.v_1 - self.varying_uv.v_0, \
                                          0)
 
             vd_0 = self.varying_vert.get_col(2) - self.varying_vert.get_col(0)
@@ -353,8 +353,7 @@ class TangentNormalmapShader(gl.Shader):
         # Transform it to screen coordinates
         return transform_vertex_to_screen(vertex, self.uniform_M_viewport)
 
-    def fragment(self, barycentric: tuple):
-        bary = Barycentric(barycentric)
+    def fragment(self, bary: Barycentric):
         p_uv = self.varying_uv * bary
         p_uv = PointUV(*p_uv)
 

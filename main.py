@@ -3,10 +3,9 @@
 from progressbar import progressbar
 
 from tiny_image import TinyImage
-
 import our_gl as gl
-from geom import Vector_3D
-from model import Model_Storage, NormalMapType
+from geom import ScreenCoords, Vector3D
+from model import ModelStorage, NormalMapType
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
                          TangentNormalmapShader
@@ -48,34 +47,34 @@ if __name__ == "__main__":
     # View property selection
     VIEW_PROP_SET = 1
     if VIEW_PROP_SET == 0:
-        EYE = Vector_3D(0, 0, 1) # Lookat camera 'EYE' position
-        CENTER = Vector_3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
-        UP = Vector_3D(0, 1, 0) # Camera 'UP' direction
+        EYE = Vector3D(0, 0, 1) # Lookat camera 'EYE' position
+        CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
+        UP = Vector3D(0, 1, 0) # Camera 'UP' direction
         SCALE = .8 # Viewport scaling
     elif VIEW_PROP_SET == 1:
-        EYE = Vector_3D(1, 0, 1)
-        CENTER = Vector_3D(0, 0, 0)
-        UP = Vector_3D(0, 1, 0)
+        EYE = Vector3D(1, 0, 1)
+        CENTER = Vector3D(0, 0, 0)
+        UP = Vector3D(0, 1, 0)
         SCALE = .8
     else:
-        EYE = Vector_3D(1, 0, 0) # Lookat camera 'EYE' position
-        CENTER = Vector_3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
-        UP = Vector_3D(0, 1, 0) # Camera 'UP' direction
+        EYE = Vector3D(1, 0, 0) # Lookat camera 'EYE' position
+        CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
+        UP = Vector3D(0, 1, 0) # Camera 'UP' direction
         SCALE = .8 # Viewport scaling
 
     # Light property
-    LIGHT_DIR = Vector_3D(1, 0, 1).norm()
+    LIGHT_DIR = Vector3D(1, 0, 1).normalize()
 
     print("Reading modeldata ...")
-    mdl = Model_Storage(object_name = "autumn", obj_filename=OBJ_FILENAME,
-                        diffuse_map_filename=DIFFUSE_FILENAME,
-                        normal_map_filename=NORMAL_MAP_FILENAME, normal_map_type=NORMAL_MAP_TYPE,
-                        specular_map_filename=SPECULAR_MAP_FILENAME)
+    mdl = ModelStorage(object_name = "autumn", obj_filename=OBJ_FILENAME,
+                       diffuse_map_filename=DIFFUSE_FILENAME,
+                       normal_map_filename=NORMAL_MAP_FILENAME, normal_map_type=NORMAL_MAP_TYPE,
+                       specular_map_filename=SPECULAR_MAP_FILENAME)
 
     # Define tranformation matrices
 
     # Generate model transformation matrix which transforms
-    #     # vertices according to the model bounding box
+    # vertices according to the model bounding box
     #
     # min[-1, -1, -1] to max[1, 1, 1] object space
     M_model = gl.model_transform(mdl.bbox[0], mdl.bbox[1])
@@ -117,12 +116,13 @@ if __name__ == "__main__":
     # Iterate model faces
     print("Drawing triangles ...")
 
-    screen_coords = [None] * 3
+    screen_coords = ScreenCoords(9*[0])
 
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
-            screen_coords[face_vert_idx] = shader.vertex(face_idx, face_vert_idx)
+            vert = shader.vertex(face_idx, face_vert_idx)
+            screen_coords = screen_coords.set_col(face_vert_idx, vert)
 
         # Rasterize triangle
         image = gl.draw_triangle(screen_coords, shader, zbuffer, image)

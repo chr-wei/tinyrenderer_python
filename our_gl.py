@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from tiny_image import TinyImage
 
-from geom import Matrix4D, Vector3D, Barycentric, Point2D, cross_product
+from geom import Matrix4D, ScreenCoords, Vector3D, Barycentric, Point2D, cross_product
 
 class Shader(ABC):
     """Abstract class for tiny shaders."""
@@ -57,52 +57,59 @@ def draw_triangle_edges(p_0, p_1, p_2, image, color):
     image = draw_line(p_2, p_0, image, color)
     return image
 
-def draw_triangle(screen_coords: list, shader: Shader, zbuffer: list, image: TinyImage):
+def draw_triangle(screen_coords: ScreenCoords, shader: Shader, zbuffer: list, image: TinyImage):
     """Base method of rasterizer which calls fragment shader."""
-    temp_coords = screen_coords.copy()
-    temp_coords.sort(key=attrgetter('x'))
-    x_min = int(min(max(temp_coords[0].x, 0), image.width - 1))
-    x_max = int(min(max(temp_coords[2].x, 0), image.width - 1))
+    x_comps = list(*screen_coords.get_row(0))
+    x_min = get_min_in_frame(0, x_comps)
+    x_max = get_max_in_frame(image.get_width() - 1, x_comps)
 
-    temp_coords.sort(key=attrgetter('y'))
-    y_min = int(min(max(temp_coords[0].y, 0), image.height - 1))
-    y_max = int(min(max(temp_coords[2].y, 0), image.height - 1))
+    y_comps = list(*screen_coords.get_row(1))
+    y_min = get_min_in_frame(0, y_comps)
+    y_max = get_max_in_frame(image.get_width() - 1, y_comps)
+
+    p_0 = Point2D(screen_coords.v_0_x, screen_coords.v_0_y)
+    p_1 = Point2D(screen_coords.v_1_x, screen_coords.v_1_y)
+    p_2 = Point2D(screen_coords.v_2_x, screen_coords.v_2_y)
+
+    z_row = Vector3D(screen_coords.get_row(2), shape = (1,3))
 
     for image_x in range(x_min, x_max):
         for image_y in range(y_min, y_max):
-            bary = barycentric(Point2D(screen_coords[0].x, screen_coords[0].y),
-                               Point2D(screen_coords[1].x, screen_coords[1].y),
-                               Point2D(screen_coords[2].x, screen_coords[2].y),
-                               Point2D(image_x, image_y))
+            p_raster = Point2D(image_x, image_y)
+            bary = calc_barycentric(p_0, p_1, p_2 ,p_raster)
 
-            (one_uv_bary, u_bary, v_bary) = bary
+            #(one_uv_bary, u_b, v_b) = bary
 
-            if one_uv_bary >= 0 and u_bary >= 0 and v_bary >= 0:
-                z_comp = one_uv_bary * screen_coords[0].z + u_bary \
-                         * screen_coords[1].z + v_bary * screen_coords[2].z
+            if all([comp >= 0 for comp in bary]):
+                z_screen = z_row * bary
 
-                if z_comp > zbuffer[image_x][image_y]:
-                    zbuffer[image_x][image_y] = z_comp
+                if z_screen > zbuffer[image_x][image_y]:
+                    zbuffer[image_x][image_y] = z_screen
 
                     discard, color = shader.fragment(bary)
                     if not discard:
                         image.set(image_x, image_y, color)
     return image
 
-def barycentric(p_0: Point2D, p_1: Point2D, p_2: Point2D, p_tri: Point2D):
+def calc_barycentric(p_0: Point2D, p_1: Point2D, p_2: Point2D, p_tri: Point2D):
     """Returns barycentric coordinates for three given triangle points and fourth point
        located relative to the triangle points.
     """
 
-    (u_bary, v_bary, r_bary) = cross_product(Vector3D(p_1.x-p_0.x, p_2.x-p_0.x, p_0.x-p_tri.x), \
-        Vector3D(p_1.y-p_0.y, p_2.y-p_0.y, p_0.y-p_tri.y))
+    bary_cross = cross_product(\
+        Vector3D(p_1.x - p_0.x, p_2.x - p_0.x, p_0.x - p_tri.x), \
+        Vector3D(p_1.y - p_0.y, p_2.y - p_0.y, p_0.y - p_tri.y))
 
-    if r_bary == 0:
+    (u_b, v_b, r_b) = bary_cross.x, bary_cross.y, bary_cross.z
+
+    if r_b == 0:
         # Triangle is degenerated
-        return (-1,-1,-1)
+        return Barycentric(-1, -1, -1)
 
-    # Component r_bary should be 1: Normalize components
-    return (1 - (u_bary + v_bary) / r_bary, u_bary / r_bary, v_bary / r_bary)
+    # Component r_b should be 1: Normalize components
+    return Barycentric(1 - (u_b + v_b) / r_b,
+                       u_b / r_b            ,
+                       v_b / r_b             )
 
 def model_transform(bounds_min: Vector3D, bounds_max: Vector3D):
     """Returns transformation matrix of model. .obj data is scaled and offset to
@@ -163,3 +170,27 @@ def normal_transformation(M_transform: Matrix4D): # pylint: disable=invalid-name
        of transformatoin matrix."""
 
     return M_transform.tr().inv()
+
+def get_min_in_frame(frm_lower_bnd, elems):
+    """Returns max value in frame:
+
+       Examples:
+           e.g. frm_lower_bnd|..x_1....x2..x3|
+                get_min_in_frame = x1
+           e.g. x3...frm_lower_bnd|..x_1....x2....|
+                get_min_in_frame = frm_lower_bnd
+    """
+    min_in_frame = min(elems)
+    return max(frm_lower_bnd, min_in_frame)
+
+def get_max_in_frame(frm_upper_bnd, elems):
+    """Returns max value in frame:
+
+       Examples:
+           e.g. |..x_1....x2..x3|frm_upper_bnd
+                get_max_in_frame = x3
+           e.g. |..x_1....x2....|frm_upper_bnd..x3
+                get_max_in_frame = frm_upper_bnd
+    """
+    max_in_frame = max(elems)
+    return min(frm_upper_bnd, max_in_frame)

@@ -38,7 +38,7 @@ class MixinAlgebra():
                 return super().__new__(cls, list(args))
 
     # Overwrite __init__ to add 'shape' keyword parameter
-    def __init__(self, shape: tuple = None):
+    def __init__(self, *args, shape: tuple = None): # pylint: disable=unused-argument
         if not shape is None:
             self._shape = shape
 
@@ -105,16 +105,16 @@ class MixinAlgebra():
 class MixinMatrix(MixinAlgebra):
     """Mixin providing additional functionalty for matrices based on typing.NamedTuple."""
     def __mul__(self, other):
-        if  MixinVector in other.__class__.__bases__:
+        if  isinstance(other, MixinVector):
             (elems, shp) = matmul(self.get_field_values(), self._shape,
                                 other.get_field_values(), other._shape)
             if self.is_square():
                 cl_type = globals()[other.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return Matrix_NxN(elems, shape = shp)
+                return MatrixNxN(elems, shape = shp)
 
-        elif MixinMatrix in other.__class__.__bases__:
+        elif isinstance(other, MixinMatrix):
             (elems, shp) = matmul(self.get_field_values(), self._shape,
                                      other.get_field_values(), other._shape)
 
@@ -122,7 +122,7 @@ class MixinMatrix(MixinAlgebra):
                 cl_type = globals()[self.__class__.__name__]
                 return cl_type(*elems)
             else:
-                return Matrix_NxN(elems, shape = shp)
+                return MatrixNxN(elems, shape = shp)
 
     def is_square(self):
         """Returns true if the matrix has square shape e.g. 2x2, 3x3, 5x5 matrices."""
@@ -134,7 +134,7 @@ class MixinMatrix(MixinAlgebra):
         cl_type = globals()[self.__class__.__name__]
         return cl_type(*elems)
 
-    def tr(self):
+    def tr(self): # pylint: disable=invalid-name
         """Returns transpose of a matrix."""
         (elems, shape) = transpose(self.get_field_values(), self._shape)
         cl_type = globals()[self.__class__.__name__]
@@ -145,7 +145,7 @@ class MixinMatrix(MixinAlgebra):
         (rows, cols) = self._shape
         elems = self.get_field_values()
         start_idx = row_idx * rows
-        return Matrix_NxN(elems[start_idx:start_idx+cols], shape = (1, cols))
+        return MatrixNxN(elems[start_idx:start_idx+cols], shape = (1, cols))
 
     def get_col(self, col_idx):
         """Returns content of column as MatrixNxN oject."""
@@ -154,12 +154,12 @@ class MixinMatrix(MixinAlgebra):
     def set_row(self, row_idx, other: Iterable):
         """Returns same object type with replaced row content."""
         (rows, cols) = self._shape
-        li = unpack_nested_iterable_to_list(other)
+        lst = unpack_nested_iterable_to_list(other)
 
-        if len(li) == cols and row_idx < rows:
+        if len(lst) == cols and row_idx < rows:
             elems = self.get_field_values()
             start_idx = row_idx * cols
-            elems[start_idx:start_idx+cols] = li
+            elems[start_idx:start_idx+cols] = lst
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems, shape = self._shape)
         else:
@@ -172,7 +172,7 @@ class MixinMatrix(MixinAlgebra):
 class MixinVector(MixinAlgebra):
     """Mixin providing additional functionalty for vectors based on typing.NamedTuple."""
     def __mul__(self, other):
-        if self.__class__.__name__ == other.__class__.__name__ and \
+        if isinstance(self, MixinVector) == isinstance(other, MixinVector) and \
             self._shape[0] < other._shape[0]:
             # Calc scalar product
             (elems, _) = matmul(self.get_field_values(), self._shape,
@@ -188,7 +188,7 @@ class MixinVector(MixinAlgebra):
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems, shape = self._shape)
 
-    def tr(self):
+    def tr(self): # pylint: disable=invalid-name
         """Returns a transposed vector."""
         # Transpose MixinVector
         (rows, cols) = self._shape
@@ -222,7 +222,7 @@ class Vector3D(MixinVector, metaclass=NamedTupleMetaEx):
     y: float
     z: float
 
-    def expand_4D(self, vtype):
+    def expand_4D(self, vtype): # pylint: disable=invalid-name
         """Expands 3D vector to 4D vector regarding the given type.
 
            Options:
@@ -261,7 +261,7 @@ class Vector4D(MixinVector, metaclass=NamedTupleMetaEx):
     z: float
     a: float
 
-    def project_3D(self, vtype):
+    def project_3D(self, vtype): # pylint: disable=invalid-name
         """Reduces four-dimensional vector to three dimensions.
 
            If vector has directional meaning the 'a' component is just omited.
@@ -281,7 +281,7 @@ class Vector4D(MixinVector, metaclass=NamedTupleMetaEx):
         else:
             raise ValueError
 
-class Matrix_NxN(MixinMatrix, metaclass=NamedTupleMetaEx):
+class MatrixNxN(MixinMatrix, metaclass=NamedTupleMetaEx):
     """Matrix with any size (n x n).
 
        Parameters:
@@ -296,12 +296,12 @@ class Matrix_NxN(MixinMatrix, metaclass=NamedTupleMetaEx):
 class MatrixUV(MixinMatrix, metaclass=NamedTupleMetaEx):
     """Matrix with size (2 x 3) holding three pairs of uv coordinates."""
     _shape = (2,3)
-    u0: float
-    u1: float
-    u2: float
-    v0: float
-    v1: float
-    v2: float
+    u_0: float
+    u_1: float
+    u_2: float
+    v_0: float
+    v_1: float
+    v_2: float
 
 class Matrix3D(MixinMatrix, metaclass=NamedTupleMetaEx):
     """Three-dimensional square matrix."""
@@ -315,6 +315,21 @@ class Matrix3D(MixinMatrix, metaclass=NamedTupleMetaEx):
     a31: float
     a32: float
     a33: float
+
+class ScreenCoords(MixinMatrix, metaclass=NamedTupleMetaEx):
+    """Three-dimensional square matrix for screen coords containing
+       three x,y,z vectors in three columns.
+    """
+    _shape = (3, 3)
+    v_0_x: float
+    v_1_x: float
+    v_2_x: float
+    v_0_y: float
+    v_1_y: float
+    v_2_y: float
+    v_0_z: float
+    v_1_z: float
+    v_2_z: float
 
 class Matrix4D(MixinMatrix, metaclass=NamedTupleMetaEx):
     """Four-dimensional square matrix."""
@@ -401,30 +416,42 @@ def cross_product(v_0: Vector3D, v_1: Vector3D):
     c_2 = v_0.x * v_1.y - v_0.y * v_1.x
     return Vector3D(c_0, c_1, c_2)
 
-def comp_min(v0, v1):
-    return Vector3D(min(v0.x, v1.x), min(v0.y, v1.y), min(v0.z, v1.z))
+def comp_min(v_0, v_1):
+    """Componentwise min function. Returns min vector."""
+    return Vector3D(min(v_0.x, v_1.x), min(v_0.y, v_1.y), min(v_0.z, v_1.z))
 
-def comp_max(v0, v1):
-    return Vector3D(max(v0.x, v1.x), max(v0.y, v1.y), max(v0.z, v1.z))
+def comp_max(v_0, v_1):
+    """Componentwise max function. Returns max vector."""
+    return Vector3D(max(v_0.x, v_1.x), max(v_0.y, v_1.y), max(v_0.z, v_1.z))
 
-def transform_vertex_to_screen(v : Vector3D, M: Matrix4D):
+def transform_vertex_to_screen(v : Vector3D, M: Matrix4D): # pylint: disable=invalid-name
+    """Transforms 3D vertex to screen coordinates.
+       Usually at least viewport matrix is passed for this step as matrix M.
+
+       Returns 3D vector containing int screen coordinates x,y and float z component.
+    """
+
     v = transform_3D4D3D(v, Vector4DType.POINT, M)
-    vz = v.z
+    v_z = v.z
     v = v // 1
-    return Vector3D(v.x, v.y, vz)
+    return Vector3D(v.x, v.y, v_z)
 
-def transform_3D4D3D(v: Vector3D, vtype: Vector4DType, M: Matrix4D):
-    v = M * v.expand_4D(vtype)
-    return v.project_3D(vtype)
+def transform_3D4D3D(vert: Vector3D, vtype: Vector4DType, M: Matrix4D): # pylint: disable=invalid-name
+    """Transforms 3D vertex with matrix. Projects vector to screen plane
+       if vector type is point (dividing by a component of internal 4D vector).
+    """
+    vert = M * vert.expand_4D(vtype)
+    return vert.project_3D(vtype)
 
-def unpack_nested_iterable_to_list(it: Iterable):
-    while any(isinstance(e, Iterable) for e in it):
+def unpack_nested_iterable_to_list(it_er: Iterable):
+    """Unpacks nested iterables. e.g. [[1,2], [3,4]] becomes [1,2,3,4]."""
+    while any(isinstance(e, Iterable) for e in it_er):
         # An iterable is nested in the parent iterable
-        it = list(chain.from_iterable(it))
-    return it
+        it_er = list(chain.from_iterable(it_er))
+    return it_er
 
-def compmul(mat_0: list, shape_0: tuple, c: float):
-
+def compmul(mat_0: list, shape_0: tuple, factor: float):
+    """Performing componentwise multiplication with factor c."""
     (rows_0, cols_0) = shape_0
 
     if len(mat_0) != (rows_0 * cols_0):
@@ -432,10 +459,10 @@ def compmul(mat_0: list, shape_0: tuple, c: float):
         raise ShapeMissmatchException
     else:
         # Return coefficients and shape tuple
-        return [e * c for e in mat_0], shape_0
+        return [e * factor for e in mat_0], shape_0
 
-def compdiv(mat_0: list, shape_0: tuple, c: float):
-    """Performing componentwise real division."""
+def compdiv(mat_0: list, shape_0: tuple, divisor: float):
+    """Performing componentwise real division by divisor."""
     (rows_0, cols_0) = shape_0
 
     if len(mat_0) != (rows_0 * cols_0):
@@ -443,9 +470,9 @@ def compdiv(mat_0: list, shape_0: tuple, c: float):
         raise ShapeMissmatchException
     else:
         # Return coefficients and shape tuple
-        return [e / c for e in mat_0], shape_0
+        return [e / divisor for e in mat_0], shape_0
 
-def compfloor(mat_0: list, shape_0: tuple, c: float):
+def compfloor(mat_0: list, shape_0: tuple, divisor: float):
     """Performing componentwise floor division."""
     (rows_0, cols_0) = shape_0
 
@@ -454,10 +481,10 @@ def compfloor(mat_0: list, shape_0: tuple, c: float):
         raise ShapeMissmatchException
     else:
         # Return coefficients and shape tuple
-        return [int(e // c) for e in mat_0], shape_0
+        return [int(e // divisor) for e in mat_0], shape_0
 
 def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
-
+    """Performing componentwise addition."""
     (rows_0, cols_0) = shape_0
     (rows_1, cols_1) = shape_1
 
@@ -471,6 +498,7 @@ def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
         return map(operator.add, mat_0, mat_1), shape_0
 
 def matsub(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
+    """Performing componentwise substraction."""
     mat_1 = [e * -1 for e in mat_1]
     return matadd(mat_0, shape_0, mat_1, shape_1)
 
@@ -483,4 +511,4 @@ def is_col_vect(shape: tuple):
     return shape[0] > shape[1]
 
 class ShapeMissmatchException(Exception):
-    pass
+    """Exception raised when matrix, vector dimensions do not fit."""
