@@ -8,11 +8,11 @@ from geom import ScreenCoords, Vector3D
 from model import ModelStorage, NormalMapType
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
-                         TangentNormalmapShader
+                         TangentNormalmapShader, DepthShader
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 1
+    MODEL_PROP_SET = 2
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
         DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.png"
@@ -83,10 +83,12 @@ if __name__ == "__main__":
     M_lookat = gl.lookat(EYE, CENTER, UP)
 
     # Generate perspective transformation
-    M_perspective = gl.perspective(4.0)
+    z_cam_dist = (EYE - CENTER).abs()
+    M_perspective = gl.perspective(z_cam_dist)
 
     # Generate transformation to final viewport
-    M_viewport = gl.viewport(+SCALE*w/8, +SCALE*h/8, SCALE*w, SCALE*h, 255)
+    depth_res = 255 # [0 ... 255]
+    M_viewport = gl.viewport(+SCALE*w/8, +SCALE*h/8, SCALE*w, SCALE*h, depth_res)
 
     # Combine matrices
     M_modelview = M_lookat * M_model
@@ -95,9 +97,13 @@ if __name__ == "__main__":
 
     M_pe_IT = M_pe.tr().inv()
 
+    # Shadow buffer matrices
+    M_lookat_cam_light = gl.lookat(LIGHT_DIR - CENTER, CENTER, UP)
+    M_sb = M_viewport * M_lookat_cam_light * M_model
+
     zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
-    SHADER_PROP_SET = 5
+    SHADER_PROP_SET = 6
     if SHADER_PROP_SET == 0:
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
@@ -110,6 +116,8 @@ if __name__ == "__main__":
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 5:
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
+    elif SHADER_PROP_SET == 6:
+        shader = DepthShader(mdl, M_sb, depth_res)
     else:
         shader = FlatShader(mdl, LIGHT_DIR, M_sc)
 
