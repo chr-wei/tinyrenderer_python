@@ -347,10 +347,9 @@ class TangentNormalmapShader(gl.Shader):
         return transform_vertex_to_screen(vert, self.uniform_M_viewport)
 
     def fragment(self, bary: Barycentric):
-        p_uv = self.varying_uv * bary
-        p_uv = PointUV(*p_uv)
+        p_uv = PointUV(self.varying_uv * bary)
 
-        n_bary = Vector3D(self.varying_normal * bary).normalize()
+        n_bary = (self.varying_normal * bary).normalize()
 
         A_inv = self.varying_A.set_row(2, n_bary).inv() # pylint: disable=invalid-name
 
@@ -367,7 +366,7 @@ class TangentNormalmapShader(gl.Shader):
         # Get diffuse lighting intensity
         cos_phi = max(0, n_local.tr() * self.uniform_l_local)
 
-        color = Vector3D(255, 255, 255)#self.mdl.get_diffuse_color(*p_uv)
+        color = self.mdl.get_diffuse_color(p_uv)
         color = cos_phi * color // 1
 
         # Do not discard pixel and return color

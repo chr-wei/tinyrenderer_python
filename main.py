@@ -12,7 +12,7 @@ from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 2
+    MODEL_PROP_SET = 1
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
         DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.png"
@@ -87,8 +87,8 @@ if __name__ == "__main__":
     M_perspective = gl.perspective(z_cam_dist)
 
     # Generate transformation to final viewport
-    depth_res = 255 # [0 ... 255]
-    M_viewport = gl.viewport(+SCALE*w/8, +SCALE*h/8, SCALE*w, SCALE*h, depth_res)
+    DEPTH_RES = 255 # [0 ... 255]
+    M_viewport = gl.viewport(+SCALE*w/8, +SCALE*h/8, SCALE*w, SCALE*h, DEPTH_RES)
 
     # Combine matrices
     M_modelview = M_lookat * M_model
@@ -98,12 +98,10 @@ if __name__ == "__main__":
     M_pe_IT = M_pe.tr().inv()
 
     # Shadow buffer matrices
-    M_lookat_cam_light = gl.lookat(LIGHT_DIR - CENTER, CENTER, UP)
+    M_lookat_cam_light = gl.lookat(LIGHT_DIR, CENTER, UP)
     M_sb = M_viewport * M_lookat_cam_light * M_model
 
-    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
-
-    SHADER_PROP_SET = 6
+    SHADER_PROP_SET = 5
     if SHADER_PROP_SET == 0:
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
@@ -116,16 +114,31 @@ if __name__ == "__main__":
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 5:
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
-    elif SHADER_PROP_SET == 6:
-        shader = DepthShader(mdl, M_sb, depth_res)
     else:
         shader = FlatShader(mdl, LIGHT_DIR, M_sc)
+
+    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+
+    # Depth shader and shadow buffer
+    depth_shader = DepthShader(mdl, M_sb, DEPTH_RES)
+    shadow_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
     # Iterate model faces
     print("Drawing triangles ...")
 
     screen_coords = ScreenCoords(9*[0])
 
+    # Shadow buffer run
+    for face_idx in progressbar(range(mdl.get_face_count())):
+        for face_vert_idx in range(3):
+            # Get transformed vertex and prepare internal shader data
+            vert = depth_shader.vertex(face_idx, face_vert_idx)
+            screen_coords = screen_coords.set_col(face_vert_idx, vert)
+
+        # Rasterize triangle, do not use output image
+        gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, image)
+
+    # Follow-up shader run
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data

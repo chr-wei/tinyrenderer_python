@@ -64,7 +64,7 @@ class MixinAlgebra():
             raise TypeError
 
     def __mul__(self, other):
-        if other.__class__.__name__ in ["float", "int"]:
+        if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
@@ -72,7 +72,7 @@ class MixinAlgebra():
             raise TypeError
 
     def __rmul__(self, other):
-        if other.__class__.__name__ in ["float", "int"]:
+        if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
@@ -80,7 +80,7 @@ class MixinAlgebra():
             raise TypeError
 
     def __truediv__(self, other):
-        if other.__class__.__name__ in ["float", "int"]:
+        if isinstance(other, (float, int)):
             (elems, _) = compdiv(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
             return cl_type(*elems)
@@ -125,7 +125,7 @@ class MixinAlgebra():
             start_idx = row_idx * cols
             elems[start_idx:start_idx+cols] = lst
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*elems, shape = self._shape)
+            return cl_type(elems, shape = self._shape)
 
         raise ShapeMissmatchException
 
@@ -137,24 +137,25 @@ class MixinAlgebra():
 class MixinMatrix(MixinAlgebra):
     """Mixin providing additional functionalty for matrices based on typing.NamedTuple."""
     def __mul__(self, other):
-        if  isinstance(other, MixinVector):
+        if  isinstance(other, (MixinMatrix, MixinVector)):
             (elems, shp) = matmul(self.get_field_values(), self._shape,
                                 other.get_field_values(), other._shape)
-            if self.is_square():
-                cl_type = globals()[other.__class__.__name__]
-                return cl_type(*elems)
-            else:
-                return MatrixNxN(elems, shape = shp)
+            if shp == (4,4):
+                return Matrix4D(*elems)
+            if shp == (3,3):
+                return Matrix3D(*elems)
+            if shp == (4,1) or shp == (1,4):
+                return Vector4D(elems, shape = shp)
+            if shp == (3,1) or shp == (1,3):
+                return Vector3D(elems, shape = shp)
+            if shp == (2,1) or shp == (1,2):
+                return Point2D(elems, shape = shp)
 
-        elif isinstance(other, MixinMatrix):
-            (elems, shp) = matmul(self.get_field_values(), self._shape,
-                                     other.get_field_values(), other._shape)
+            # Fallback to NxN Matrix if no special shape applies
+            return MatrixNxN(elems, shape = shp)
 
-            if self.is_square() and other.is_square():
-                cl_type = globals()[self.__class__.__name__]
-                return cl_type(*elems)
-            else:
-                return MatrixNxN(elems, shape = shp)
+        # Fallback to more common MixinAlgebra __mul__
+        return super().__mul__(other)
 
     def is_square(self):
         """Returns true if the matrix has square shape e.g. 2x2, 3x3, 5x5 matrices."""
@@ -170,26 +171,28 @@ class MixinMatrix(MixinAlgebra):
         """Returns transpose of a matrix."""
         (elems, shape) = transpose(self.get_field_values(), self._shape)
         cl_type = globals()[self.__class__.__name__]
-        return cl_type(*elems, shape = shape)
+        return cl_type(elems, shape = shape)
 
 class MixinVector(MixinAlgebra):
     """Mixin providing additional functionalty for vectors based on typing.NamedTuple."""
     def __mul__(self, other):
-        if isinstance(self, MixinVector) == isinstance(other, MixinVector) and \
+        if isinstance(self, MixinVector) and isinstance(other, MixinVector) and \
             self._shape[0] < other._shape[0]:
             # Calc scalar product
             (elems, _) = matmul(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
             return elems[0]
 
-        elif other.__class__.__name__ in ["float", "int"]:
-            return super().__mul__(other)
+        # Fallback to MixinAlgebra __mul__
+        return super().__mul__(other)
 
     def __floordiv__(self, other):
-        if other.__class__.__name__ in ["float", "int"]:
+        if isinstance(other, (float, int)):
             (elems, _) = compfloor(self.get_field_values(), self._shape, other)
             cl_type = globals()[self.__class__.__name__]
-            return cl_type(*elems, shape = self._shape)
+            return cl_type(elems, shape = self._shape)
+
+        return ValueError
 
     def tr(self): # pylint: disable=invalid-name
         """Returns a transposed vector."""
@@ -198,7 +201,7 @@ class MixinVector(MixinAlgebra):
 
         cl_type = globals()[self.__class__.__name__]
         elems = self._asdict().values()
-        return cl_type(*elems, shape = (cols, rows))
+        return cl_type(elems, shape = (cols, rows))
 
 class Point2D(MixinVector, metaclass=NamedTupleMetaEx):
     """Two-dimensional point with x and y ordinate."""
@@ -233,15 +236,14 @@ class Vector3D(MixinVector, metaclass=NamedTupleMetaEx):
                 Vector4D(x, y, z, 1) for vectors identifying a vertex in 3D space.
            """
 
-        if is_col_vect(self._shape):
-            new_shape = (4,1)
-        else:
-            new_shape = (1,4)
+        new_shape = (4,1) if is_col_vect(self._shape) else (1,4)
 
         if vtype == Vector4DType.DIRECTION:
             return Vector4D(self.x, self.y, self.z, 0, shape = new_shape)
-        elif vtype == Vector4DType.POINT:
+        if vtype == Vector4DType.POINT:
             return Vector4D(self.x, self.y, self.z, 1, shape = new_shape)
+
+        return ValueError
 
     def abs(self):
         """Returns length of vector."""
@@ -250,10 +252,7 @@ class Vector3D(MixinVector, metaclass=NamedTupleMetaEx):
     def normalize(self):
         """Normalizes vector to length = 1.0."""
         abl = self.abs()
-        if abl > 0:
-            return self / abl
-        else:
-            return None
+        return self / abl if abl > 0 else None
 
 class Vector4D(MixinVector, metaclass=NamedTupleMetaEx):
     """Four-dimensional vector with x, y, y and a component."""
@@ -272,17 +271,14 @@ class Vector4D(MixinVector, metaclass=NamedTupleMetaEx):
            by diving all components through last component 'a'.
         """
 
-        if is_col_vect(self._shape):
-            new_shape = (3,1)
-        else:
-            new_shape = (1,3)
+        new_shape = (3,1) if is_col_vect(self._shape) else (1,3)
 
         if vtype == Vector4DType.DIRECTION:
             return Vector3D(self.x, self.y, self.z, shape = new_shape)
-        elif vtype == Vector4DType.POINT:
+        if vtype == Vector4DType.POINT:
             return Vector3D(self.x / self.a, self.y / self.a, self.z / self.a, shape = new_shape)
-        else:
-            raise ValueError
+
+        raise ValueError
 
 class MatrixNxN(MixinMatrix, metaclass=NamedTupleMetaEx):
     """Matrix with any size (n x n).
