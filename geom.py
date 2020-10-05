@@ -46,46 +46,47 @@ class MixinAlgebra():
                 raise ShapeMissmatchException
 
     def __add__(self, other):
-        if other.__class__.__name__ == self.__class__.__name__:
+        if type(self) == type(other):
             (elems, _) = matadd(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(*elems)
         else:
             raise TypeError
 
     def __sub__(self, other):
-        if other.__class__.__name__ == self.__class__.__name__:
+        if type(self) == type(other):
             (elems, _) = matsub(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(*elems)
-        else:
-            raise TypeError
+
+        raise TypeError
 
     def __mul__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(*elems)
-        else:
-            raise TypeError
+
+        # All other cases should already have been handled in instance classes
+        raise TypeError
 
     def __rmul__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(*elems)
-        else:
-            raise TypeError
+
+        raise TypeError
 
     def __truediv__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compdiv(self.get_field_values(), self._shape, other)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(*elems)
-        else:
-            raise TypeError
+
+        raise TypeError
 
     def get_field_values(self):
         """Returns all field values of the typing.NamedTuple._asdict method as list.
@@ -110,6 +111,7 @@ class MixinAlgebra():
 
     def get_col(self, col_idx):
         """Returns content of column as MatrixNxN oject."""
+        # Fixme: Improve speed here. Too many transposes
         return self.tr().get_row(col_idx)
 
     def set_row(self, row_idx, other):
@@ -124,7 +126,7 @@ class MixinAlgebra():
             elems = self.get_field_values()
             start_idx = row_idx * cols
             elems[start_idx:start_idx+cols] = lst
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(elems, shape = self._shape)
 
         raise ShapeMissmatchException
@@ -164,13 +166,13 @@ class MixinMatrix(MixinAlgebra):
     def inv(self):
         """Returns inverse of a matrix."""
         (elems, _) = inverse(self, self._shape)
-        cl_type = globals()[self.__class__.__name__]
+        cl_type = type(self)
         return cl_type(*elems)
 
     def tr(self): # pylint: disable=invalid-name
         """Returns transpose of a matrix."""
         (elems, shape) = transpose(self.get_field_values(), self._shape)
-        cl_type = globals()[self.__class__.__name__]
+        cl_type = type(self)
         return cl_type(elems, shape = shape)
 
 class MixinVector(MixinAlgebra):
@@ -189,7 +191,7 @@ class MixinVector(MixinAlgebra):
     def __floordiv__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compfloor(self.get_field_values(), self._shape, other)
-            cl_type = globals()[self.__class__.__name__]
+            cl_type = type(self)
             return cl_type(elems, shape = self._shape)
 
         return ValueError
@@ -199,7 +201,7 @@ class MixinVector(MixinAlgebra):
         # Transpose MixinVector
         (rows, cols) = self._shape
 
-        cl_type = globals()[self.__class__.__name__]
+        cl_type = type(self)
         elems = self._asdict().values()
         return cl_type(elems, shape = (cols, rows))
 
