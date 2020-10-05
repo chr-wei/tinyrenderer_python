@@ -372,3 +372,28 @@ class TangentNormalmapShader(gl.Shader):
 
         # Do not discard pixel and return color
         return (False, color)
+
+class DepthShader(gl.Shader):
+    """Shader which creates a paperfold effect."""
+    mdl: ModelStorage
+
+    # Vertices are stored col-wise
+    varying_vert = Matrix3D(9*[0])
+
+    uniform_M_sb: Matrix4D
+
+    def __init__(self, mdl, M_sb, depth_res):
+        self.mdl = mdl
+        self.uniform_M_sb = M_sb # pylint: disable=invalid-name
+        self.uniform_depth_res = depth_res
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        vert = transform_vertex_to_screen(vert, self.uniform_M_sb)
+        self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
+        return vert
+
+    def fragment(self, bary: Barycentric):
+        v_bary = Vector3D(self.varying_vert * bary)
+        color = (Vector3D(255, 255, 255) * v_bary.z / self.uniform_depth_res) // 1
+        return (False, color) # Do not discard pixel and return color
