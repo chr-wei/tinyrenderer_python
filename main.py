@@ -8,14 +8,14 @@ from geom import ScreenCoords, Vector3D
 from model import ModelStorage, NormalMapType
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
-                         TangentNormalmapShader, DepthShader
+                         TangentNormalmapShader, DepthShader, SpecularShadowShader
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 1
+    MODEL_PROP_SET = 0
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
-        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.png"
+        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color_li.png"
         NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_wrld_space.tga"
         NORMAL_MAP_TYPE = NormalMapType.GLOBAL
         SPECULAR_MAP_FILENAME = "obj/autumn/TEX_autumn_body_spec.tga"
@@ -45,25 +45,25 @@ if __name__ == "__main__":
     image = TinyImage(w, h)
 
     # View property selection
-    VIEW_PROP_SET = 1
+    VIEW_PROP_SET = 0
     if VIEW_PROP_SET == 0:
-        EYE = Vector3D(0, 0, 1) # Lookat camera 'EYE' position
+        EYE = Vector3D(0, 0, 4) # Lookat camera 'EYE' position
         CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
         UP = Vector3D(0, 1, 0) # Camera 'UP' direction
         SCALE = .8 # Viewport scaling
     elif VIEW_PROP_SET == 1:
-        EYE = Vector3D(1, 0, 1)
+        EYE = Vector3D(2.828, 0, 2.828)
         CENTER = Vector3D(0, 0, 0)
         UP = Vector3D(0, 1, 0)
         SCALE = .8
     else:
-        EYE = Vector3D(1, 0, 0) # Lookat camera 'EYE' position
+        EYE = Vector3D(4, 0, 0) # Lookat camera 'EYE' position
         CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
         UP = Vector3D(0, 1, 0) # Camera 'UP' direction
         SCALE = .8 # Viewport scaling
 
     # Light property
-    LIGHT_DIR = Vector3D(1, 0, 1).normalize()
+    LIGHT_DIR = Vector3D(-1, 1, 1).normalize()
 
     print("Reading modeldata ...")
     mdl = ModelStorage(object_name = "autumn", obj_filename=OBJ_FILENAME,
@@ -101,7 +101,10 @@ if __name__ == "__main__":
     M_lookat_cam_light = gl.lookat(LIGHT_DIR, CENTER, UP)
     M_sb = M_viewport * M_lookat_cam_light * M_model
 
-    SHADER_PROP_SET = 5
+    shadow_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+    shadow_image = TinyImage(w, h)
+
+    SHADER_PROP_SET = 6
     if SHADER_PROP_SET == 0:
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
@@ -114,6 +117,8 @@ if __name__ == "__main__":
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 5:
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
+    elif SHADER_PROP_SET == 6:
+        shader = SpecularShadowShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, M_sb, shadow_buffer)
     else:
         shader = FlatShader(mdl, LIGHT_DIR, M_sc)
 
@@ -121,14 +126,12 @@ if __name__ == "__main__":
 
     # Depth shader and shadow buffer
     depth_shader = DepthShader(mdl, M_sb, DEPTH_RES)
-    shadow_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
 
     # Iterate model faces
-    print("Drawing triangles ...")
-
     screen_coords = ScreenCoords(9*[0])
 
     # Shadow buffer run
+    print("Saving shadow buffer ...")
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
@@ -136,9 +139,10 @@ if __name__ == "__main__":
             screen_coords = screen_coords.set_col(face_vert_idx, vert)
 
         # Rasterize triangle, do not use output image
-        gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, image)
-
+        shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, shadow_image)
+    shadow_image.save_to_disk("renders/shadow_buffer.png")
     # Follow-up shader run
+    print("Drawing triangles ...")
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
