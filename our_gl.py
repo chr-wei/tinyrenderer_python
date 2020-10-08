@@ -1,7 +1,6 @@
 """our_gl module mimics OpenGL functionality. Specifiy shader implementations
    have to be made externally based on provided abstract class Shader.
 """
-from operator import attrgetter
 from abc import ABC, abstractmethod
 
 from tiny_image import TinyImage
@@ -59,13 +58,14 @@ def draw_triangle_edges(p_0, p_1, p_2, image, color):
 
 def draw_triangle(screen_coords: ScreenCoords, shader: Shader, zbuffer: list, image: TinyImage):
     """Base method of rasterizer which calls fragment shader."""
-    x_comps = list(*screen_coords.get_row(0))
-    x_min = get_min_in_frame(0, x_comps)
-    x_max = get_max_in_frame(image.get_width() - 1, x_comps)
-
-    y_comps = list(*screen_coords.get_row(1))
-    y_min = get_min_in_frame(0, y_comps)
-    y_max = get_max_in_frame(image.get_width() - 1, y_comps)
+    # Read x component vector and get x min and max to draw in (framed by image size)
+    x_row = screen_coords.get_row(0)
+    x_min = get_min_in_frame(0, x_row)
+    x_max = get_max_in_frame(image.get_width() - 1, x_row)
+    # Read y component vector and get y min and max to draw in (framed by image size)
+    y_row = screen_coords.get_row(1)
+    y_min = get_min_in_frame(0, y_row)
+    y_max = get_max_in_frame(image.get_width() - 1, y_row)
 
     p_0 = Point2D(screen_coords.v_0_x, screen_coords.v_0_y)
     p_1 = Point2D(screen_coords.v_1_x, screen_coords.v_1_y)
