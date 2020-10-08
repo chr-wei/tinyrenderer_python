@@ -49,8 +49,7 @@ class MixinAlgebra():
         if type(self) == type(other):
             (elems, _) = matadd(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
-            cl_type = type(self)
-            return cl_type(*elems)
+            return type(self)(*elems)
         else:
             raise TypeError
 
@@ -58,16 +57,14 @@ class MixinAlgebra():
         if type(self) == type(other):
             (elems, _) = matsub(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
-            cl_type = type(self)
-            return cl_type(*elems)
+            return type(self)(*elems)
 
         raise TypeError
 
     def __mul__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
-            cl_type = type(self)
-            return cl_type(*elems)
+            return type(self)(*elems)
 
         # All other cases should already have been handled in instance classes
         raise TypeError
@@ -75,16 +72,14 @@ class MixinAlgebra():
     def __rmul__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compmul(self.get_field_values(), self._shape, other)
-            cl_type = type(self)
-            return cl_type(*elems)
+            return  type(self)(*elems)
 
         raise TypeError
 
     def __truediv__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compdiv(self.get_field_values(), self._shape, other)
-            cl_type = type(self)
-            return cl_type(*elems)
+            return type(self)(*elems)
 
         raise TypeError
 
@@ -107,7 +102,9 @@ class MixinAlgebra():
         (rows, cols) = self._shape
         elems = self.get_field_values()
         start_idx = row_idx * rows
-        return MatrixNxN(elems[start_idx:start_idx+cols], shape = (1, cols))
+        shp = (1, cols)
+        cl_type = get_standard_type(shp)
+        return cl_type(*elems[start_idx:start_idx+cols], shape = (1, cols))
 
     def get_col(self, col_idx):
         """Returns content of column as MatrixNxN oject."""
@@ -126,8 +123,7 @@ class MixinAlgebra():
             elems = self.get_field_values()
             start_idx = row_idx * cols
             elems[start_idx:start_idx+cols] = lst
-            cl_type = type(self)
-            return cl_type(elems, shape = self._shape)
+            return type(self)(elems, shape = self._shape)
 
         raise ShapeMissmatchException
 
@@ -142,19 +138,7 @@ class MixinMatrix(MixinAlgebra):
         if  isinstance(other, (MixinMatrix, MixinVector)):
             (elems, shp) = matmul(self.get_field_values(), self._shape,
                                 other.get_field_values(), other._shape)
-            if shp == (4,4):
-                return Matrix4D(*elems)
-            if shp == (3,3):
-                return Matrix3D(*elems)
-            if shp == (4,1) or shp == (1,4):
-                return Vector4D(elems, shape = shp)
-            if shp == (3,1) or shp == (1,3):
-                return Vector3D(elems, shape = shp)
-            if shp == (2,1) or shp == (1,2):
-                return Point2D(elems, shape = shp)
-
-            # Fallback to NxN Matrix if no special shape applies
-            return MatrixNxN(elems, shape = shp)
+            return get_standard_type(shp)(*elems, shape = shp)
 
         # Fallback to more common MixinAlgebra __mul__
         return super().__mul__(other)
@@ -166,14 +150,12 @@ class MixinMatrix(MixinAlgebra):
     def inv(self):
         """Returns inverse of a matrix."""
         (elems, _) = inverse(self, self._shape)
-        cl_type = type(self)
-        return cl_type(*elems)
+        return type(self)(*elems)
 
     def tr(self): # pylint: disable=invalid-name
         """Returns transpose of a matrix."""
         (elems, shape) = transpose(self.get_field_values(), self._shape)
-        cl_type = type(self)
-        return cl_type(elems, shape = shape)
+        return type(self)(elems, shape = shape)
 
 class MixinVector(MixinAlgebra):
     """Mixin providing additional functionalty for vectors based on typing.NamedTuple."""
@@ -191,8 +173,7 @@ class MixinVector(MixinAlgebra):
     def __floordiv__(self, other):
         if isinstance(other, (float, int)):
             (elems, _) = compfloor(self.get_field_values(), self._shape, other)
-            cl_type = type(self)
-            return cl_type(elems, shape = self._shape)
+            return type(self)(elems, shape = self._shape)
 
         return ValueError
 
@@ -200,10 +181,9 @@ class MixinVector(MixinAlgebra):
         """Returns a transposed vector."""
         # Transpose MixinVector
         (rows, cols) = self._shape
-
-        cl_type = type(self)
+ 
         elems = self._asdict().values()
-        return cl_type(elems, shape = (cols, rows))
+        return type(self)(elems, shape = (cols, rows))
 
 class Point2D(MixinVector, metaclass=NamedTupleMetaEx):
     """Two-dimensional point with x and y ordinate."""
@@ -510,6 +490,25 @@ def is_row_vect(shape: tuple):
 def is_col_vect(shape: tuple):
     """Returning true if vector shape is col space e.g. shape = (4,1)"""
     return shape[0] > shape[1]
+
+def get_standard_type(shape: tuple):
+    """Return standard return classes for given shapes."""
+    rows, cols = shape
+    if cols > rows:
+        # Switch to have shape sorted
+        shape = (cols, rows)
+    if shape == (4,4):
+        return Matrix4D
+    if shape == (3,3):
+        return Matrix3D
+    if shape == (4,1):
+        return Vector4D
+    if shape == (3,1):
+        return Vector3D
+    if shape == (2,1):
+        return Point2D
+     # Fallback to NxN Matrix if no special shape applies
+    return MatrixNxN
 
 class ShapeMissmatchException(Exception):
     """Exception raised when matrix, vector dimensions do not fit."""
