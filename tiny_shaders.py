@@ -502,6 +502,9 @@ class AmbientOcclusionShader(gl.Shader):
     uniform_precalc_zbuffer: list
     uniform_zbuffer_width: int
     uniform_zbuffer_height: int
+    
+    varying_uv = MatrixUV(6*[0])
+
     sweep_step: int
     sweep_incr_fact: float
 
@@ -525,6 +528,10 @@ class AmbientOcclusionShader(gl.Shader):
         vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
         vert = transform_vertex_to_screen(vert, self.uniform_M)
         self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
+
+        self.varying_uv = \
+            self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
+
         return vert
 
     def fragment(self, bary: Barycentric):
@@ -539,8 +546,12 @@ class AmbientOcclusionShader(gl.Shader):
             summed_ang = summed_ang + (math.pi / 2 - max_elevation)
 
         ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
-        ao_intensity = ao_intensity ** 10
-        color = Vector3D(255, 255, 255) * ao_intensity // 1
+        ao_intensity = ao_intensity ** 20
+
+        p_uv = PointUV(self.varying_uv * bary)
+        color = self.mdl.get_diffuse_color(p_uv)
+        color = color * ao_intensity // 1
+
         return (False, color)
 
     def max_elevation_angle(self, pt_amb: Point2D, sweep_dir: Vector2D):
