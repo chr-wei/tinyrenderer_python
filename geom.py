@@ -49,7 +49,7 @@ class MixinAlgebra():
 
     def __add__(self, other):
         if type(self) == type(other):
-            (elems, _) = matadd(self.get_field_values(), self._shape,
+            (elems, _) = mat_add(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
             return type(self)(*elems)
         else:
@@ -57,7 +57,7 @@ class MixinAlgebra():
 
     def __sub__(self, other):
         if type(self) == type(other):
-            (elems, _) = matsub(self.get_field_values(), self._shape,
+            (elems, _) = mat_sub(self.get_field_values(), self._shape,
                                  other.get_field_values(), other._shape)
             return type(self)(*elems)
 
@@ -65,7 +65,7 @@ class MixinAlgebra():
 
     def __mul__(self, other):
         if isinstance(other, (float, int)):
-            (elems, _) = compmul(self.get_field_values(), self._shape, other)
+            (elems, _) = comp_mul(self.get_field_values(), self._shape, other)
             return type(self)(*elems)
 
         # All other cases should already have been handled in instance classes
@@ -73,14 +73,14 @@ class MixinAlgebra():
 
     def __rmul__(self, other):
         if isinstance(other, (float, int)):
-            (elems, _) = compmul(self.get_field_values(), self._shape, other)
+            (elems, _) = comp_mul(self.get_field_values(), self._shape, other)
             return  type(self)(*elems)
 
         raise TypeError
 
     def __truediv__(self, other):
         if isinstance(other, (float, int)):
-            (elems, _) = compdiv(self.get_field_values(), self._shape, other)
+            (elems, _) = comp_div(self.get_field_values(), self._shape, other)
             return type(self)(*elems)
 
         raise TypeError
@@ -162,11 +162,13 @@ class MixinMatrix(MixinAlgebra):
 class MixinVector(MixinAlgebra):
     """Mixin providing additional functionalty for vectors based on typing.NamedTuple."""
     def __mul__(self, other):
-        if isinstance(self, MixinVector) and isinstance(other, MixinVector) and \
-            self._shape[0] < other._shape[0]:
-            # Calc scalar product
-            (elems, _) = matmul(self.get_field_values(), self._shape,
-                                 other.get_field_values(), other._shape)
+        if isinstance(self, MixinVector) and isinstance(other, MixinVector):
+            if self._shape[0] > other._shape[0]:
+                raise ShapeMissmatchException
+            else:
+                # Calc scalar product
+                (elems, _) = matmul(self.get_field_values(), self._shape,
+                                    other.get_field_values(), other._shape)
             return elems[0]
 
         # Fallback to MixinAlgebra __mul__
@@ -174,7 +176,7 @@ class MixinVector(MixinAlgebra):
 
     def __floordiv__(self, other):
         if isinstance(other, (float, int)):
-            (elems, _) = compfloor(self.get_field_values(), self._shape, other)
+            (elems, _) = comp_floor(self.get_field_values(), self._shape, other)
             return type(self)(elems, shape = self._shape)
 
         return ValueError
@@ -439,7 +441,7 @@ def unpack_nested_iterable_to_list(it_er: Iterable):
         it_er = list(chain.from_iterable(it_er))
     return it_er
 
-def compmul(mat_0: list, shape_0: tuple, factor: float):
+def comp_mul(mat_0: list, shape_0: tuple, factor: float):
     """Performing componentwise multiplication with factor c."""
     (rows_0, cols_0) = shape_0
 
@@ -450,7 +452,7 @@ def compmul(mat_0: list, shape_0: tuple, factor: float):
         # Return coefficients and shape tuple
         return [e * factor for e in mat_0], shape_0
 
-def compdiv(mat_0: list, shape_0: tuple, divisor: float):
+def comp_div(mat_0: list, shape_0: tuple, divisor: float):
     """Performing componentwise real division by divisor."""
     (rows_0, cols_0) = shape_0
 
@@ -461,7 +463,7 @@ def compdiv(mat_0: list, shape_0: tuple, divisor: float):
         # Return coefficients and shape tuple
         return [e / divisor for e in mat_0], shape_0
 
-def compfloor(mat_0: list, shape_0: tuple, divisor: float):
+def comp_floor(mat_0: list, shape_0: tuple, divisor: float):
     """Performing componentwise floor division."""
     (rows_0, cols_0) = shape_0
 
@@ -477,7 +479,7 @@ def vect_norm(all_elems: list):
     squared = [elem**2 for elem in all_elems]
     return sqrt(reduce(operator.add, squared))
 
-def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
+def mat_add(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
     """Performing componentwise addition."""
     (rows_0, cols_0) = shape_0
     (rows_1, cols_1) = shape_1
@@ -491,10 +493,10 @@ def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
         # Return coefficients and shape tuple
         return map(operator.add, mat_0, mat_1), shape_0
 
-def matsub(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
+def mat_sub(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
     """Performing componentwise substraction."""
     mat_1 = [e * -1 for e in mat_1]
-    return matadd(mat_0, shape_0, mat_1, shape_1)
+    return mat_add(mat_0, shape_0, mat_1, shape_1)
 
 def is_row_vect(shape: tuple):
     """Returning true if vector shape is row space e.g. shape = (1,4)"""

@@ -472,19 +472,88 @@ class SpecularShadowShader(gl.Shader):
         # Do not discard pixel and return color
         return (False, color)
 
-def get_max_elevation_angle(pt_amb: Point2D, z_buffer: list, sweep_dir: Vector2D):
-    """Returns max elevation angle ray-casted from starting point pt_amb."""
-    (im_w, im_h) = len(z_buffer)
-    fact = 1 / max(pt_amb)
-    vect_amb = Vector3D(pt_amb.x, pt_amb.x, z_buffer[pt_amb.x][pt_amb.y])
-    sweep_proj = vect_amb
-    max_angle = 0
+class ZShader(gl.Shader):
+    """Shader used to save shadow buffer."""
+    mdl: ModelStorage
 
-    while 0 <= sweep_proj.x < im_w and 0 <= sweep_proj.y < im_h:
-        sweep_proj += fact * Vector3D(sweep_dir.x, sweep_dir.y, 0)
-        z_height = z_buffer[int(sweep_proj.x // 1)][int(sweep_proj.y // 1)]
-        sweep = Vector3D(sweep_proj.x, sweep_proj.y, z_height)
-        alpha = math.acos((sweep - vect_amb).normalize() * sweep_proj.normalize())
-        max_angle = max(alpha, max_angle)
+    uniform_M: Matrix4D
 
-    return max_angle
+    def __init__(self, mdl, M):
+        self.mdl = mdl
+        self.uniform_M = M # pylint: disable=invalid-name
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        return transform_vertex_to_screen(vert, self.uniform_M)
+
+    def fragment(self, bary: Barycentric):
+        # Do not return color. This is shader is used passively to create
+        # generate a screen space shadow buffer
+        return (True, None)
+
+
+class AmbientOcclusionShader(gl.Shader):
+    """Shader used to compute ambient occlusion local illumination."""
+    mdl: ModelStorage
+
+    # Vertices are stored col-wise
+    varying_vert = Matrix3D(9*[0])
+
+    uniform_M: Matrix4D
+    uniform_precalc_zbuffer: list
+    uniform_zbuffer_width: int
+    uniform_zbuffer_height: int
+
+    def __init__(self, mdl, M, percalc_zbuffer, zbuffer_width, zbuffer_height):
+        self.mdl = mdl
+        self.uniform_M = M # pylint: disable=invalid-name
+        self.uniform_precalc_zbuffer = percalc_zbuffer
+        self.uniform_zbuffer_width = zbuffer_width
+        self.uniform_zbuffer_height = zbuffer_height
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        vert = transform_vertex_to_screen(vert, self.uniform_M)
+        self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
+        return vert
+
+    def fragment(self, bary: Barycentric):
+        (x_sc, y_sc, _) = self.varying_vert * bary // 1
+
+        summed_ang = 0
+        RAY_NUM = 8
+        for ray_angle in [2*math.pi*ray / RAY_NUM for ray in range(RAY_NUM)]:
+            max_elevation = self.max_elevation_angle(
+                                self.uniform_precalc_zbuffer,
+                                self.uniform_zbuffer_width, self.uniform_zbuffer_height,
+                                Point2D(x_sc, y_sc), 
+                                Vector2D(math.cos(ray_angle), math.sin(ray_angle)))
+
+            summed_ang = summed_ang + (math.pi / 2 - max_elevation)
+
+        ao_intensity = summed_ang / (math.pi/2 * RAY_NUM)
+        ao_intensity = ao_intensity**10
+        color = Vector3D(255, 255, 255) * ao_intensity // 1
+        return (False, color)
+
+    @staticmethod
+    def max_elevation_angle(zbuffer: list, image_width, image_height,
+                            pt_amb: Point2D, sweep_dir: Vector2D):
+        """Returns max elevation angle ray-casted from starting point pt_amb."""
+        pt_amb_z = zbuffer[pt_amb.x][pt_amb.y]
+        sweep = Vector2D(pt_amb)
+        if abs(sweep_dir.x) > abs(sweep_dir.y):
+            max_sweep_comp = abs(sweep_dir.x)
+        else:
+            max_sweep_comp = abs(sweep_dir.y)
+        sweep_delta = 1.0 / max_sweep_comp * sweep_dir
+        max_tan = 0
+        while True:
+            z_height = zbuffer[int(sweep.x)][int(sweep.y)]
+            if z_height > pt_amb_z:
+                tan_val = (z_height - pt_amb_z) / sweep.abs()
+                max_tan = max(tan_val, max_tan)
+            sweep += sweep_delta
+            if not 0 <= sweep.x < (image_width) or not 0 <= sweep.y < (image_height):
+                break
+        return math.atan(max_tan)

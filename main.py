@@ -1,14 +1,15 @@
 """A tiny shader fork written in Python 3"""
-
-from progressbar import progressbar
+from math import pi, sin, cos
+import progressbar
 
 from tiny_image import TinyImage
 import our_gl as gl
-from geom import ScreenCoords, Vector3D
+from geom import ScreenCoords, Vector3D, Vector2D, Point2D
 from model import ModelStorage, NormalMapType
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
-                         TangentNormalmapShader, DepthShader, SpecularShadowShader
+                         TangentNormalmapShader, DepthShader, SpecularShadowShader, \
+                         ZShader, AmbientOcclusionShader
 
 if __name__ == "__main__":
     # Model property selection
@@ -38,14 +39,18 @@ if __name__ == "__main__":
     # Image property selection
     IMG_PROP_SET = 1
     if IMG_PROP_SET == 0:
+        (w, h) = (200, 200)
+    elif IMG_PROP_SET == 1:
+        (w, h) = (800, 800)
+    elif IMG_PROP_SET == 2:
         (w, h) = (2000, 2000)
     else:
-        (w, h) = (800, 800)
+        raise ValueError
 
     image = TinyImage(w, h)
 
     # View property selection
-    VIEW_PROP_SET = 0
+    VIEW_PROP_SET = 1
     if VIEW_PROP_SET == 0:
         EYE = Vector3D(0, 0, 4) # Lookat camera 'EYE' position
         CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
@@ -106,30 +111,44 @@ if __name__ == "__main__":
     shadow_image = None
     M_sb = None
 
-    SHADER_PROP_SET = 6
+    SHADER_PROP_SET = 8
     if SHADER_PROP_SET == 0:
+        AO_RUN = False
+        WRITE_SHADOW_BUFFER = False
+        shader = FlatShader(mdl, LIGHT_DIR, M_sc)
+    elif SHADER_PROP_SET == 1:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
-    elif SHADER_PROP_SET == 1:
+    elif SHADER_PROP_SET == 2:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GouraudShaderSegregated(mdl, LIGHT_DIR, M_sc, 4)
-    elif SHADER_PROP_SET == 2:
+    elif SHADER_PROP_SET == 3:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = DiffuseGouraudShader(mdl, LIGHT_DIR, M_sc)
-    elif SHADER_PROP_SET == 3:
+    elif SHADER_PROP_SET == 4:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GlobalNormalmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
-    elif SHADER_PROP_SET == 4:
+    elif SHADER_PROP_SET == 5:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
-    elif SHADER_PROP_SET == 5:
+    elif SHADER_PROP_SET == 6:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
-    elif SHADER_PROP_SET == 6:
+    elif SHADER_PROP_SET == 7:
         WRITE_SHADOW_BUFFER = True
         shader = SpecularShadowShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, None, None)
+    elif SHADER_PROP_SET == 8:
+        AO_RUN = True
+        WRITE_SHADOW_BUFFER = False
+        shader = ZShader(mdl, M_sc)
     else:
-        shader = FlatShader(mdl, LIGHT_DIR, M_sc)
+        raise ValueError
 
     # Shadow buffer run
     if WRITE_SHADOW_BUFFER:
@@ -147,21 +166,23 @@ if __name__ == "__main__":
         # Apply data to normal shader
         shader.uniform_M_sb = M_sb
         shader.shadow_buffer = shadow_buffer
-        
+
         print("Saving shadow buffer ...")
-        for face_idx in progressbar(range(mdl.get_face_count())):
+        for face_idx in progressbar.progressbar(range(mdl.get_face_count())):
             for face_vert_idx in range(3):
                 # Get transformed vertex and prepare internal shader data
                 vert = depth_shader.vertex(face_idx, face_vert_idx)
                 screen_coords = screen_coords.set_col(face_vert_idx, vert)
 
             # Rasterize image (z heigth in dir of light). Shadow buffer is filles as well
-            shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, shadow_image)
+            shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, 
+                                            shadow_image)
+
         shadow_image.save_to_disk("renders/shadow_buffer.png")
 
     # Normal shader run
     print("Drawing triangles ...")
-    for face_idx in progressbar(range(mdl.get_face_count())):
+    for face_idx in progressbar.progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
             vert = shader.vertex(face_idx, face_vert_idx)
@@ -169,5 +190,27 @@ if __name__ == "__main__":
 
         # Rasterize triangle
         image = gl.draw_triangle(screen_coords, shader, zbuffer, image)
+
+    # AO run
+    if AO_RUN:
+        print("Applying ambient occlusion ...")
+        with progressbar.ProgressBar(max_value = w*h) as bar:
+            for image_x in range(0, w):
+                for image_y in range(0, h):
+                    if zbuffer[image_x][image_y] > -float('Inf'):
+                        summed_ang = 0
+                        RAY_NUM = 8
+                        for ray_angle in [2*pi*ray / RAY_NUM for ray in range(RAY_NUM)]:
+                            max_elevation = AmbientOcclusionShader.max_elevation_angle(
+                                                zbuffer, w, h,
+                                                Point2D(image_x, image_y),
+                                                Vector2D(cos(ray_angle), sin(ray_angle)))
+                                                
+                            summed_ang = summed_ang + pi/2 - max_elevation
+
+                        ao_intensity = summed_ang / (pi / 2 * RAY_NUM)
+                        ao_intensity = ao_intensity**100
+                        image.set(image_x, image_y, Vector3D(255, 255, 255) * ao_intensity // 1)
+                        bar.update(image_x * w + image_y)
 
     image.save_to_disk(OUTPUT_FILENAME)
