@@ -12,7 +12,7 @@ from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 0
+    MODEL_PROP_SET = 2
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
         DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color_li.png"
@@ -97,51 +97,69 @@ if __name__ == "__main__":
 
     M_pe_IT = M_pe.tr().inv()
 
-    # Shadow buffer matrices
-    M_lookat_cam_light = gl.lookat(LIGHT_DIR, CENTER, UP)
-    M_sb = M_viewport * M_lookat_cam_light * M_model
+    # Init vars for normal shader run
+    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+    screen_coords = ScreenCoords(9*[0])
 
-    shadow_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
-    shadow_image = TinyImage(w, h)
+    # Init vars for shaders which use a shadow buffer
+    shadow_buffer = None
+    shadow_image = None
+    M_sb = None
 
     SHADER_PROP_SET = 6
     if SHADER_PROP_SET == 0:
+        WRITE_SHADOW_BUFFER = False
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
+        WRITE_SHADOW_BUFFER = False
         shader = GouraudShaderSegregated(mdl, LIGHT_DIR, M_sc, 4)
     elif SHADER_PROP_SET == 2:
+        WRITE_SHADOW_BUFFER = False
         shader = DiffuseGouraudShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 3:
+        WRITE_SHADOW_BUFFER = False
         shader = GlobalNormalmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 4:
+        WRITE_SHADOW_BUFFER = False
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
     elif SHADER_PROP_SET == 5:
+        WRITE_SHADOW_BUFFER = False
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
     elif SHADER_PROP_SET == 6:
-        shader = SpecularShadowShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, M_sb, shadow_buffer)
+        WRITE_SHADOW_BUFFER = True
+        shader = SpecularShadowShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, None, None)
     else:
         shader = FlatShader(mdl, LIGHT_DIR, M_sc)
 
-    zbuffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
-
-    # Depth shader and shadow buffer
-    depth_shader = DepthShader(mdl, M_sb, DEPTH_RES)
-
-    # Iterate model faces
-    screen_coords = ScreenCoords(9*[0])
-
     # Shadow buffer run
-    print("Saving shadow buffer ...")
-    for face_idx in progressbar(range(mdl.get_face_count())):
-        for face_vert_idx in range(3):
-            # Get transformed vertex and prepare internal shader data
-            vert = depth_shader.vertex(face_idx, face_vert_idx)
-            screen_coords = screen_coords.set_col(face_vert_idx, vert)
+    if WRITE_SHADOW_BUFFER:
+        # Shadow buffer matrices
+        M_lookat_cam_light = gl.lookat(LIGHT_DIR, CENTER, UP)
+        M_sb = M_viewport * M_lookat_cam_light * M_model
 
-        # Rasterize triangle, do not use output image
-        shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, shadow_image)
-    shadow_image.save_to_disk("renders/shadow_buffer.png")
-    # Follow-up shader run
+
+        shadow_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+        shadow_image = TinyImage(w, h)
+
+        # Depth shader and shadow buffer
+        depth_shader = DepthShader(mdl, M_sb, DEPTH_RES)
+
+        # Apply data to normal shader
+        shader.uniform_M_sb = M_sb
+        shader.shadow_buffer = shadow_buffer
+        
+        print("Saving shadow buffer ...")
+        for face_idx in progressbar(range(mdl.get_face_count())):
+            for face_vert_idx in range(3):
+                # Get transformed vertex and prepare internal shader data
+                vert = depth_shader.vertex(face_idx, face_vert_idx)
+                screen_coords = screen_coords.set_col(face_vert_idx, vert)
+
+            # Rasterize image (z heigth in dir of light). Shadow buffer is filles as well
+            shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, shadow_image)
+        shadow_image.save_to_disk("renders/shadow_buffer.png")
+
+    # Normal shader run
     print("Drawing triangles ...")
     for face_idx in progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):

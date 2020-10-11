@@ -56,8 +56,8 @@ class GouraudShader(gl.Shader):
 
     def __init__(self, mdl, light_dir, M):
         self.mdl = mdl
-        self.light_dir = light_dir
-        self.M = M # pylint: disable=invalid-name
+        self.uniform_l_global = light_dir
+        self.uniform_M = M # pylint: disable=invalid-name
 
     def vertex(self, face_idx: int, vert_idx: int):
         n_tri = self.mdl.get_normal(face_idx, vert_idx)
