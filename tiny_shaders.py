@@ -503,6 +503,7 @@ class AmbientOcclusionShader(gl.Shader):
     uniform_precalc_zbuffer: list
     uniform_zbuffer_width: int
     uniform_zbuffer_height: int
+    sweep_step: int
 
     def __init__(self, mdl, M, percalc_zbuffer, zbuffer_width, zbuffer_height):
         self.mdl = mdl
@@ -510,6 +511,14 @@ class AmbientOcclusionShader(gl.Shader):
         self.uniform_precalc_zbuffer = percalc_zbuffer
         self.uniform_zbuffer_width = zbuffer_width
         self.uniform_zbuffer_height = zbuffer_height
+
+        # Performance is very dependent on sweep step of ray casting and number of rays
+
+        # Increase divisor to get faster renders but more inaccurate AO
+        self.sweep_step = int(max(zbuffer_width, zbuffer_height) / 60)
+
+        # Decrease ray num to get faster renders but more inaccurate AO
+        self.ray_num = 16
 
     def vertex(self, face_idx: int, vert_idx: int):
         vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
@@ -521,39 +530,36 @@ class AmbientOcclusionShader(gl.Shader):
         (x_sc, y_sc, _) = self.varying_vert * bary // 1
 
         summed_ang = 0
-        RAY_NUM = 8
-        for ray_angle in [2*math.pi*ray / RAY_NUM for ray in range(RAY_NUM)]:
+        for ray_angle in [2 * math.pi * ray / self.ray_num for ray in range(self.ray_num)]:
             max_elevation = self.max_elevation_angle(
-                                self.uniform_precalc_zbuffer,
-                                self.uniform_zbuffer_width, self.uniform_zbuffer_height,
-                                Point2D(x_sc, y_sc), 
+                                Point2D(x_sc, y_sc),
                                 Vector2D(math.cos(ray_angle), math.sin(ray_angle)))
 
             summed_ang = summed_ang + (math.pi / 2 - max_elevation)
 
-        ao_intensity = summed_ang / (math.pi/2 * RAY_NUM)
-        ao_intensity = ao_intensity**10
+        ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
+        ao_intensity = ao_intensity ** 10
         color = Vector3D(255, 255, 255) * ao_intensity // 1
         return (False, color)
 
-    @staticmethod
-    def max_elevation_angle(zbuffer: list, image_width, image_height,
-                            pt_amb: Point2D, sweep_dir: Vector2D):
+    def max_elevation_angle(self, pt_amb: Point2D, sweep_dir: Vector2D):
         """Returns max elevation angle ray-casted from starting point pt_amb."""
-        pt_amb_z = zbuffer[pt_amb.x][pt_amb.y]
+        pt_amb_z = self.uniform_precalc_zbuffer[pt_amb.x][pt_amb.y]
         sweep = Vector2D(pt_amb)
         if abs(sweep_dir.x) > abs(sweep_dir.y):
             max_sweep_comp = abs(sweep_dir.x)
         else:
             max_sweep_comp = abs(sweep_dir.y)
-        sweep_delta = 1.0 / max_sweep_comp * sweep_dir
+        sweep_delta = self.sweep_step / max_sweep_comp * sweep_dir
         max_tan = 0
         while True:
-            z_height = zbuffer[int(sweep.x)][int(sweep.y)]
+            z_height = self.uniform_precalc_zbuffer[int(sweep.x)][int(sweep.y)]
             if z_height > pt_amb_z:
-                tan_val = (z_height - pt_amb_z) / sweep.abs()
+                elevation = z_height - pt_amb_z
+                tan_val = elevation / sweep.abs()
                 max_tan = max(tan_val, max_tan)
             sweep += sweep_delta
-            if not 0 <= sweep.x < (image_width) or not 0 <= sweep.y < (image_height):
+            if not 0 <= sweep.x < (self.uniform_zbuffer_width) or \
+               not 0 <= sweep.y < (self.uniform_zbuffer_height):
                 break
         return math.atan(max_tan)
