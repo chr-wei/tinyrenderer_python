@@ -2,6 +2,7 @@
    same structure maintained by an abstract base class in our_gl module."""
 
 import math
+import random
 import our_gl as gl
 from geom import Matrix4D, Matrix3D, MatrixUV, \
                  Vector4DType, Vector3D, Vector2D, Point2D, Barycentric, PointUV, \
@@ -461,7 +462,6 @@ class SpecularShadowShader(gl.Shader):
         reflect = (2 * (cos_phi) * n_local - l_local).normalize()
         cos_r_z = max(0, reflect.z) # equals: reflect.tr() * Vector3D(0, 0, 1) == reflect.z
         specular_intensity = math.pow(cos_r_z, self.mdl.get_specular_power_from_map(p_uv))
-        
 
         color = self.mdl.get_diffuse_color(p_uv)
 
@@ -491,7 +491,6 @@ class ZShader(gl.Shader):
         # generate a screen space shadow buffer
         return (True, None)
 
-
 class AmbientOcclusionShader(gl.Shader):
     """Shader used to compute ambient occlusion local illumination."""
     mdl: ModelStorage
@@ -504,6 +503,7 @@ class AmbientOcclusionShader(gl.Shader):
     uniform_zbuffer_width: int
     uniform_zbuffer_height: int
     sweep_step: int
+    sweep_incr_fact: float
 
     def __init__(self, mdl, M, percalc_zbuffer, zbuffer_width, zbuffer_height):
         self.mdl = mdl
@@ -514,11 +514,12 @@ class AmbientOcclusionShader(gl.Shader):
 
         # Performance is very dependent on sweep step of ray casting and number of rays
 
-        # Increase divisor to get faster renders but more inaccurate AO
-        self.sweep_step = int(max(zbuffer_width, zbuffer_height) / 60)
+        # Increase factor to get faster renders but more inaccurate AO
+        self.sweep_incr_fact = 12.0
+        assert self.sweep_incr_fact > 1.0, "Factor must not be below 1.0. Infinite loop run ahead."
 
         # Decrease ray num to get faster renders but more inaccurate AO
-        self.ray_num = 16
+        self.ray_num = 11
 
     def vertex(self, face_idx: int, vert_idx: int):
         vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
@@ -530,7 +531,7 @@ class AmbientOcclusionShader(gl.Shader):
         (x_sc, y_sc, _) = self.varying_vert * bary // 1
 
         summed_ang = 0
-        for ray_angle in [2 * math.pi * ray / self.ray_num for ray in range(self.ray_num)]:
+        for ray_angle in [random.uniform(0, 2 * math.pi) for ray in range(self.ray_num)]:
             max_elevation = self.max_elevation_angle(
                                 Point2D(x_sc, y_sc),
                                 Vector2D(math.cos(ray_angle), math.sin(ray_angle)))
@@ -550,7 +551,7 @@ class AmbientOcclusionShader(gl.Shader):
             max_sweep_comp = abs(sweep_dir.x)
         else:
             max_sweep_comp = abs(sweep_dir.y)
-        sweep_delta = self.sweep_step / max_sweep_comp * sweep_dir
+        sweep_delta = 1.0 / max_sweep_comp * sweep_dir
         max_tan = 0
         while True:
             z_height = self.uniform_precalc_zbuffer[int(sweep.x)][int(sweep.y)]
@@ -558,7 +559,10 @@ class AmbientOcclusionShader(gl.Shader):
                 elevation = z_height - pt_amb_z
                 tan_val = elevation / sweep.abs()
                 max_tan = max(tan_val, max_tan)
+
+            sweep_delta *= self.sweep_incr_fact
             sweep += sweep_delta
+
             if not 0 <= sweep.x < (self.uniform_zbuffer_width) or \
                not 0 <= sweep.y < (self.uniform_zbuffer_height):
                 break
