@@ -6,9 +6,11 @@ import typing
 from collections.abc import Iterable
 
 from itertools import chain
+from functools import reduce
 import operator
 
-import math
+from math import sqrt
+
 import numpy as np
 
 class Vector4DType(Enum):
@@ -185,6 +187,10 @@ class MixinVector(MixinAlgebra):
         elems = self._asdict().values()
         return type(self)(elems, shape = (cols, rows))
 
+    def abs(self):
+        """Returns length of vector."""
+        return vect_norm(self.get_field_values())
+
 class Point2D(MixinVector, metaclass=NamedTupleMetaEx):
     """Two-dimensional point with x and y ordinate."""
     _shape = (2,1)
@@ -203,6 +209,12 @@ class Barycentric(MixinVector, metaclass=NamedTupleMetaEx):
     one_u_v: float
     u: float
     v: float
+
+class Vector2D(MixinVector, metaclass=NamedTupleMetaEx):
+    """Two-dimensional point with x and y ordinate."""
+    _shape = (2,1)
+    x: float
+    y: float
 class Vector3D(MixinVector, metaclass=NamedTupleMetaEx):
     """Three-dimensional vector with x, y, z component."""
     _shape = (3,1)
@@ -226,10 +238,6 @@ class Vector3D(MixinVector, metaclass=NamedTupleMetaEx):
             return Vector4D(self.x, self.y, self.z, 1, shape = new_shape)
 
         return ValueError
-
-    def abs(self):
-        """Returns length of vector."""
-        return math.sqrt(self.x**2 + self.y**2 + self.z**2)
 
     def normalize(self):
         """Normalizes vector to length = 1.0."""
@@ -463,6 +471,11 @@ def compfloor(mat_0: list, shape_0: tuple, divisor: float):
     else:
         # Return coefficients and shape tuple
         return [int(e // divisor) for e in mat_0], shape_0
+
+def vect_norm(all_elems: list):
+    """Return norm of n-dim vector."""
+    squared = [elem**2 for elem in all_elems]
+    return sqrt(reduce(operator.add, squared))
 
 def matadd(mat_0: list, shape_0: tuple, mat_1: list, shape_1: tuple):
     """Performing componentwise addition."""

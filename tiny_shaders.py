@@ -4,7 +4,7 @@
 import math
 import our_gl as gl
 from geom import Matrix4D, Matrix3D, MatrixUV, \
-                 Vector4DType, Vector3D, Barycentric, PointUV, \
+                 Vector4DType, Vector3D, Vector2D, Point2D, Barycentric, PointUV, \
                  transform_3D4D3D, transform_vertex_to_screen, \
                  cross_product, comp_min
 
@@ -471,3 +471,20 @@ class SpecularShadowShader(gl.Shader):
 
         # Do not discard pixel and return color
         return (False, color)
+
+def get_max_elevation_angle(pt_amb: Point2D, z_buffer: list, sweep_dir: Vector2D):
+    """Returns max elevation angle ray-casted from starting point pt_amb."""
+    (im_w, im_h) = len(z_buffer)
+    fact = 1 / max(pt_amb)
+    vect_amb = Vector3D(pt_amb.x, pt_amb.x, z_buffer[pt_amb.x][pt_amb.y])
+    sweep_proj = vect_amb
+    max_angle = 0
+
+    while 0 <= sweep_proj.x < im_w and 0 <= sweep_proj.y < im_h:
+        sweep_proj += fact * Vector3D(sweep_dir.x, sweep_dir.y, 0)
+        z_height = z_buffer[int(sweep_proj.x // 1)][int(sweep_proj.y // 1)]
+        sweep = Vector3D(sweep_proj.x, sweep_proj.y, z_height)
+        alpha = math.acos((sweep - vect_amb).normalize() * sweep_proj.normalize())
+        max_angle = max(alpha, max_angle)
+
+    return max_angle
