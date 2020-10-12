@@ -333,12 +333,12 @@ class TangentNormalmapShader(gl.Shader):
 
         if vert_idx == 2:
             self.varying_b_u = Vector3D(self.varying_uv.u_2 - self.varying_uv.u_0, \
-                                         self.varying_uv.u_1 - self.varying_uv.u_0, \
-                                         0)
+                                        self.varying_uv.u_1 - self.varying_uv.u_0, \
+                                        0)
 
             self.varying_b_v = Vector3D(self.varying_uv.v_2 - self.varying_uv.v_0, \
-                                         self.varying_uv.v_1 - self.varying_uv.v_0, \
-                                         0)
+                                        self.varying_uv.v_1 - self.varying_uv.v_0, \
+                                        0)
 
             vd_0 = self.varying_vert.get_col(2) - self.varying_vert.get_col(0)
             vd_1 = self.varying_vert.get_col(1) - self.varying_vert.get_col(0)
@@ -428,7 +428,7 @@ class SpecularShadowShader(gl.Shader):
         # Read the vertex
         vert = self.mdl.get_vertex(face_idx, vert_idx)
         self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
-        
+
         # Get uv map point for diffuse color interpolation and store it
         self.varying_uv = \
             self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
@@ -466,7 +466,8 @@ class SpecularShadowShader(gl.Shader):
         color = self.mdl.get_diffuse_color(p_uv)
 
         # Combine base, diffuse and specular intensity
-        color = 20 * Vector3D(1,1,1) + color * shadowed_intensity * (1.2 * diffuse_intensity + .6 * specular_intensity)
+        color = 20 * Vector3D(1,1,1) + \
+            color * shadowed_intensity * (1.2 * diffuse_intensity + .6 * specular_intensity)
         color = comp_min(Vector3D(255, 255, 255), color) // 1
 
         # Do not discard pixel and return color
@@ -502,7 +503,7 @@ class AmbientOcclusionShader(gl.Shader):
     uniform_precalc_zbuffer: list
     uniform_zbuffer_width: int
     uniform_zbuffer_height: int
-    
+
     varying_uv = MatrixUV(6*[0])
 
     sweep_step: int
@@ -519,10 +520,10 @@ class AmbientOcclusionShader(gl.Shader):
 
         # Increase factor to get faster renders but more inaccurate AO
         self.sweep_incr_fact = 12.0
-        assert self.sweep_incr_fact > 1.0, "Factor must not be below 1.0. Infinite loop run ahead."
+        assert self.sweep_incr_fact >= 1.0, "Factor must not be below 1.0. Infinite loop run ahead."
 
         # Decrease ray num to get faster renders but more inaccurate AO
-        self.ray_num = 11
+        self.ray_num = 12
 
     def vertex(self, face_idx: int, vert_idx: int):
         vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
@@ -538,15 +539,17 @@ class AmbientOcclusionShader(gl.Shader):
         (x_sc, y_sc, _) = self.varying_vert * bary // 1
 
         summed_ang = 0
-        for ray_angle in [random.uniform(0, 2 * math.pi) for ray in range(self.ray_num)]:
-            max_elevation = self.max_elevation_angle(
+        for ray_angle in get_ray_angles(self.ray_num, randomized = True):
+            max_elevation = max_elevation_angle(self.uniform_precalc_zbuffer,
+                                self.uniform_zbuffer_width, self.uniform_zbuffer_height,
                                 Point2D(x_sc, y_sc),
-                                Vector2D(math.cos(ray_angle), math.sin(ray_angle)))
+                                Vector2D(math.cos(ray_angle), math.sin(ray_angle)), 
+                                self.sweep_incr_fact)
 
             summed_ang = summed_ang + (math.pi / 2 - max_elevation)
 
         ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
-        ao_intensity = ao_intensity ** 20
+        ao_intensity = ao_intensity ** 5
 
         p_uv = PointUV(self.varying_uv * bary)
         color = self.mdl.get_diffuse_color(p_uv)
@@ -554,27 +557,35 @@ class AmbientOcclusionShader(gl.Shader):
 
         return (False, color)
 
-    def max_elevation_angle(self, pt_amb: Point2D, sweep_dir: Vector2D):
-        """Returns max elevation angle ray-casted from starting point pt_amb."""
-        pt_amb_z = self.uniform_precalc_zbuffer[pt_amb.x][pt_amb.y]
-        sweep = Vector2D(pt_amb)
-        if abs(sweep_dir.x) > abs(sweep_dir.y):
-            max_sweep_comp = abs(sweep_dir.x)
-        else:
-            max_sweep_comp = abs(sweep_dir.y)
-        sweep_delta = 1.0 / max_sweep_comp * sweep_dir
-        max_tan = 0
-        while True:
-            z_height = self.uniform_precalc_zbuffer[int(sweep.x)][int(sweep.y)]
-            if z_height > pt_amb_z:
-                elevation = z_height - pt_amb_z
-                tan_val = elevation / sweep.abs()
-                max_tan = max(tan_val, max_tan)
+def max_elevation_angle(zbuffer: list, zbuf_width: float, zbuf_height: float,
+                        pt_amb: Point2D, sweep_dir: Vector2D, sweep_incr_fact: float):
+    """Returns max elevation angle ray-casted from starting point pt_amb."""
 
-            sweep_delta *= self.sweep_incr_fact
-            sweep += sweep_delta
+    pt_amb_z = zbuffer[pt_amb.x][pt_amb.y]
+    sweep = Vector2D(pt_amb)
+    if abs(sweep_dir.x) > abs(sweep_dir.y):
+        max_sweep_comp = abs(sweep_dir.x)
+    else:
+        max_sweep_comp = abs(sweep_dir.y)
+    sweep_delta = 1.0 / max_sweep_comp * sweep_dir
+    max_tan = 0
+    while True:
+        z_height = zbuffer[int(sweep.x)][int(sweep.y)]
+        if z_height > pt_amb_z:
+            elevation = z_height - pt_amb_z
+            tan_val = elevation / sweep.abs()
+            max_tan = max(tan_val, max_tan)
+        sweep_delta *= sweep_incr_fact
+        sweep += sweep_delta
+        if not 0 <= sweep.x < (zbuf_width) or \
+           not 0 <= sweep.y < (zbuf_height):
+            break
+    return math.atan(max_tan)
 
-            if not 0 <= sweep.x < (self.uniform_zbuffer_width) or \
-               not 0 <= sweep.y < (self.uniform_zbuffer_height):
-                break
-        return math.atan(max_tan)
+def get_ray_angles(ray_num, randomized: bool = True):
+    """Return randomized or equal-spaced rays in between 0 and 2 * pi
+       for a given count of rays."""
+    if randomized:
+        return [random.uniform(0, 2 * math.pi) for ray in range(ray_num)]
+
+    return [2 * math.pi * ray / ray_num for ray in range(ray_num)]
