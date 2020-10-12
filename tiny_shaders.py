@@ -2,9 +2,10 @@
    same structure maintained by an abstract base class in our_gl module."""
 
 import math
+import random
 import our_gl as gl
 from geom import Matrix4D, Matrix3D, MatrixUV, \
-                 Vector4DType, Vector3D, Barycentric, PointUV, \
+                 Vector4DType, Vector3D, Vector2D, Point2D, Barycentric, PointUV, \
                  transform_3D4D3D, transform_vertex_to_screen, \
                  cross_product, comp_min
 
@@ -332,12 +333,12 @@ class TangentNormalmapShader(gl.Shader):
 
         if vert_idx == 2:
             self.varying_b_u = Vector3D(self.varying_uv.u_2 - self.varying_uv.u_0, \
-                                         self.varying_uv.u_1 - self.varying_uv.u_0, \
-                                         0)
+                                        self.varying_uv.u_1 - self.varying_uv.u_0, \
+                                        0)
 
             self.varying_b_v = Vector3D(self.varying_uv.v_2 - self.varying_uv.v_0, \
-                                         self.varying_uv.v_1 - self.varying_uv.v_0, \
-                                         0)
+                                        self.varying_uv.v_1 - self.varying_uv.v_0, \
+                                        0)
 
             vd_0 = self.varying_vert.get_col(2) - self.varying_vert.get_col(0)
             vd_1 = self.varying_vert.get_col(1) - self.varying_vert.get_col(0)
@@ -427,7 +428,7 @@ class SpecularShadowShader(gl.Shader):
         # Read the vertex
         vert = self.mdl.get_vertex(face_idx, vert_idx)
         self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
-        
+
         # Get uv map point for diffuse color interpolation and store it
         self.varying_uv = \
             self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
@@ -461,13 +462,130 @@ class SpecularShadowShader(gl.Shader):
         reflect = (2 * (cos_phi) * n_local - l_local).normalize()
         cos_r_z = max(0, reflect.z) # equals: reflect.tr() * Vector3D(0, 0, 1) == reflect.z
         specular_intensity = math.pow(cos_r_z, self.mdl.get_specular_power_from_map(p_uv))
-        
 
         color = self.mdl.get_diffuse_color(p_uv)
 
         # Combine base, diffuse and specular intensity
-        color = 20 * Vector3D(1,1,1) + color * shadowed_intensity * (1.2 * diffuse_intensity + .6 * specular_intensity)
+        color = 20 * Vector3D(1,1,1) + \
+            color * shadowed_intensity * (1.2 * diffuse_intensity + .6 * specular_intensity)
         color = comp_min(Vector3D(255, 255, 255), color) // 1
 
         # Do not discard pixel and return color
         return (False, color)
+
+class ZShader(gl.Shader):
+    """Shader used to save shadow buffer."""
+    mdl: ModelStorage
+
+    uniform_M: Matrix4D
+
+    def __init__(self, mdl, M):
+        self.mdl = mdl
+        self.uniform_M = M # pylint: disable=invalid-name
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        return transform_vertex_to_screen(vert, self.uniform_M)
+
+    def fragment(self, bary: Barycentric):
+        # Do not return color. This is shader is used passively to create
+        # generate a screen space shadow buffer
+        return (True, None)
+
+class AmbientOcclusionShader(gl.Shader):
+    """Shader used to compute ambient occlusion local illumination."""
+    mdl: ModelStorage
+
+    # Vertices are stored col-wise
+    varying_vert = Matrix3D(9*[0])
+
+    uniform_M: Matrix4D
+    uniform_precalc_zbuffer: list
+    uniform_zbuffer_width: int
+    uniform_zbuffer_height: int
+
+    varying_uv = MatrixUV(6*[0])
+
+    sweep_step: int
+    sweep_incr_fact: float
+
+    def __init__(self, mdl, M, percalc_zbuffer, zbuffer_width, zbuffer_height):
+        self.mdl = mdl
+        self.uniform_M = M # pylint: disable=invalid-name
+        self.uniform_precalc_zbuffer = percalc_zbuffer
+        self.uniform_zbuffer_width = zbuffer_width
+        self.uniform_zbuffer_height = zbuffer_height
+
+        # Performance is very dependent on sweep step of ray casting and number of rays
+
+        # Increase factor to get faster renders but more inaccurate AO
+        self.sweep_incr_fact = 12.0
+        assert self.sweep_incr_fact >= 1.0, "Factor must not be below 1.0. Infinite loop run ahead."
+
+        # Decrease ray num to get faster renders but more inaccurate AO
+        self.ray_num = 12
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+        vert = transform_vertex_to_screen(vert, self.uniform_M)
+        self.varying_vert = self.varying_vert.set_col(vert_idx, vert)
+
+        self.varying_uv = \
+            self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
+
+        return vert
+
+    def fragment(self, bary: Barycentric):
+        (x_sc, y_sc, _) = self.varying_vert * bary // 1
+
+        summed_ang = 0
+        for ray_angle in get_ray_angles(self.ray_num, randomized = True):
+            max_elevation = max_elevation_angle(self.uniform_precalc_zbuffer,
+                                self.uniform_zbuffer_width, self.uniform_zbuffer_height,
+                                Point2D(x_sc, y_sc),
+                                Vector2D(math.cos(ray_angle), math.sin(ray_angle)), 
+                                self.sweep_incr_fact)
+
+            summed_ang = summed_ang + (math.pi / 2 - max_elevation)
+
+        ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
+        ao_intensity = ao_intensity ** 5
+
+        p_uv = PointUV(self.varying_uv * bary)
+        color = self.mdl.get_diffuse_color(p_uv)
+        color = color * ao_intensity // 1
+
+        return (False, color)
+
+def max_elevation_angle(zbuffer: list, zbuf_width: float, zbuf_height: float,
+                        pt_amb: Point2D, sweep_dir: Vector2D, sweep_incr_fact: float):
+    """Returns max elevation angle ray-casted from starting point pt_amb."""
+
+    pt_amb_z = zbuffer[pt_amb.x][pt_amb.y]
+    sweep = Vector2D(pt_amb)
+    if abs(sweep_dir.x) > abs(sweep_dir.y):
+        max_sweep_comp = abs(sweep_dir.x)
+    else:
+        max_sweep_comp = abs(sweep_dir.y)
+    sweep_delta = 1.0 / max_sweep_comp * sweep_dir
+    max_tan = 0
+    while True:
+        z_height = zbuffer[int(sweep.x)][int(sweep.y)]
+        if z_height > pt_amb_z:
+            elevation = z_height - pt_amb_z
+            tan_val = elevation / sweep.abs()
+            max_tan = max(tan_val, max_tan)
+        sweep_delta *= sweep_incr_fact
+        sweep += sweep_delta
+        if not 0 <= sweep.x < (zbuf_width) or \
+           not 0 <= sweep.y < (zbuf_height):
+            break
+    return math.atan(max_tan)
+
+def get_ray_angles(ray_num, randomized: bool = True):
+    """Return randomized or equal-spaced rays in between 0 and 2 * pi
+       for a given count of rays."""
+    if randomized:
+        return [random.uniform(0, 2 * math.pi) for ray in range(ray_num)]
+
+    return [2 * math.pi * ray / ray_num for ray in range(ray_num)]
