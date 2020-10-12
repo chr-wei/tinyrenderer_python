@@ -1,26 +1,36 @@
 """A tiny shader fork written in Python 3"""
-
-from progressbar import progressbar
+import progressbar
 
 from tiny_image import TinyImage
 import our_gl as gl
 from geom import ScreenCoords, Vector3D
 from model import ModelStorage, NormalMapType
+
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
-                         TangentNormalmapShader, DepthShader, SpecularShadowShader
+                         TangentNormalmapShader, DepthShader, SpecularShadowShader, \
+                         ZShader, AmbientOcclusionShader
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 2
+    MODEL_PROP_SET = 0
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
-        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color_li.png"
-        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_wrld_space.tga"
-        NORMAL_MAP_TYPE = NormalMapType.GLOBAL
+        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.tga"
+        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_tngt.tga"
+        NORMAL_MAP_TYPE = NormalMapType.TANGENT
         SPECULAR_MAP_FILENAME = "obj/autumn/TEX_autumn_body_spec.tga"
+        AO_MAP_FILENAME = "obj/autumn/TEX_autumn_body_ao.tga"
         OUTPUT_FILENAME = "renders/out.png"
     elif MODEL_PROP_SET == 1:
+        OBJ_FILENAME = "obj/autumn/autumn.obj"
+        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.tga"
+        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_wrld.tga"
+        NORMAL_MAP_TYPE = NormalMapType.GLOBAL
+        SPECULAR_MAP_FILENAME = "obj/autumn/TEX_autumn_body_spec.tga"
+        AO_MAP_FILENAME = "obj/autumn/TEX_autumn_body_ao.tga"
+        OUTPUT_FILENAME = "renders/out.png"
+    elif MODEL_PROP_SET == 2:
         OBJ_FILENAME = "obj/head/head.obj"
         DIFFUSE_FILENAME = "obj/head/head_diffuse.tga"
         NORMAL_MAP_FILENAME = "obj/head/head_nm_tangent.tga"
@@ -38,9 +48,13 @@ if __name__ == "__main__":
     # Image property selection
     IMG_PROP_SET = 1
     if IMG_PROP_SET == 0:
+        (w, h) = (200, 200)
+    elif IMG_PROP_SET == 1:
+        (w, h) = (800, 800)
+    elif IMG_PROP_SET == 2:
         (w, h) = (2000, 2000)
     else:
-        (w, h) = (800, 800)
+        raise ValueError
 
     image = TinyImage(w, h)
 
@@ -63,7 +77,7 @@ if __name__ == "__main__":
         SCALE = .8 # Viewport scaling
 
     # Light property
-    LIGHT_DIR = Vector3D(-1, 1, 1).normalize()
+    LIGHT_DIR = Vector3D(1, 0, 0).normalize()
 
     print("Reading modeldata ...")
     mdl = ModelStorage(object_name = "autumn", obj_filename=OBJ_FILENAME,
@@ -106,30 +120,44 @@ if __name__ == "__main__":
     shadow_image = None
     M_sb = None
 
-    SHADER_PROP_SET = 6
+    SHADER_PROP_SET = 8
     if SHADER_PROP_SET == 0:
+        AO_RUN = False
+        WRITE_SHADOW_BUFFER = False
+        shader = FlatShader(mdl, LIGHT_DIR, M_sc)
+    elif SHADER_PROP_SET == 1:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GouraudShader(mdl, LIGHT_DIR, M_sc)
-    elif SHADER_PROP_SET == 1:
+    elif SHADER_PROP_SET == 2:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GouraudShaderSegregated(mdl, LIGHT_DIR, M_sc, 4)
-    elif SHADER_PROP_SET == 2:
+    elif SHADER_PROP_SET == 3:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = DiffuseGouraudShader(mdl, LIGHT_DIR, M_sc)
-    elif SHADER_PROP_SET == 3:
+    elif SHADER_PROP_SET == 4:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = GlobalNormalmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
-    elif SHADER_PROP_SET == 4:
+    elif SHADER_PROP_SET == 5:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = SpecularmapShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT)
-    elif SHADER_PROP_SET == 5:
+    elif SHADER_PROP_SET == 6:
+        AO_RUN = False
         WRITE_SHADOW_BUFFER = False
         shader = TangentNormalmapShader(mdl, LIGHT_DIR, M_pe, M_pe_IT, M_viewport)
-    elif SHADER_PROP_SET == 6:
+    elif SHADER_PROP_SET == 7:
         WRITE_SHADOW_BUFFER = True
         shader = SpecularShadowShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, None, None)
+    elif SHADER_PROP_SET == 8:
+        AO_RUN = True
+        WRITE_SHADOW_BUFFER = False
+        shader = AmbientOcclusionShader(mdl, M_sc, None, w, h)
     else:
-        shader = FlatShader(mdl, LIGHT_DIR, M_sc)
+        raise ValueError
 
     # Shadow buffer run
     if WRITE_SHADOW_BUFFER:
@@ -147,21 +175,48 @@ if __name__ == "__main__":
         # Apply data to normal shader
         shader.uniform_M_sb = M_sb
         shader.shadow_buffer = shadow_buffer
-        
+
         print("Saving shadow buffer ...")
-        for face_idx in progressbar(range(mdl.get_face_count())):
+        for face_idx in progressbar.progressbar(range(mdl.get_face_count())):
             for face_vert_idx in range(3):
                 # Get transformed vertex and prepare internal shader data
                 vert = depth_shader.vertex(face_idx, face_vert_idx)
                 screen_coords = screen_coords.set_col(face_vert_idx, vert)
 
             # Rasterize image (z heigth in dir of light). Shadow buffer is filles as well
-            shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, shadow_image)
+            shadow_image = gl.draw_triangle(screen_coords, depth_shader, shadow_buffer, 
+                                            shadow_image)
+
         shadow_image.save_to_disk("renders/shadow_buffer.png")
+
+    # AO run
+    if AO_RUN:
+        print("Precalculating zbuffer for ambient occlusion shader ...")
+        precalc_z_buffer = [[-float('Inf') for bx in range(w)] for y in range(h)]
+        ao_image = TinyImage(w, h)
+        z_shader = ZShader(mdl, M_sc)
+
+        for face_idx in progressbar.progressbar(range(mdl.get_face_count())):
+            for face_vert_idx in range(3):
+                # Get transformed vertex and prepare internal shader data
+                vert = z_shader.vertex(face_idx, face_vert_idx)
+                screen_coords = screen_coords.set_col(face_vert_idx, vert)
+
+            # Rasterize triangle
+            image = gl.draw_triangle(screen_coords, z_shader, precalc_z_buffer, ao_image)
+
+        # Prepare and set data for the next shader
+        shader.uniform_precalc_zbuffer = precalc_z_buffer
+
+        # Lower precalc z buffer a little bit to make next shader raster the top pixels but
+        # not all pixels since AO shader calls are expensive
+        for x_sc in range(w):
+            for y_sc in range(h):
+                zbuffer[x_sc][y_sc] = precalc_z_buffer[x_sc][y_sc] - 1e-10
 
     # Normal shader run
     print("Drawing triangles ...")
-    for face_idx in progressbar(range(mdl.get_face_count())):
+    for face_idx in progressbar.progressbar(range(mdl.get_face_count())):
         for face_vert_idx in range(3):
             # Get transformed vertex and prepare internal shader data
             vert = shader.vertex(face_idx, face_vert_idx)
