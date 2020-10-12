@@ -13,15 +13,24 @@ from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 2
+    MODEL_PROP_SET = 0
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
-        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color_li.png"
-        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_wrld_space.tga"
-        NORMAL_MAP_TYPE = NormalMapType.GLOBAL
+        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.tga"
+        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_tngt.tga"
+        NORMAL_MAP_TYPE = NormalMapType.TANGENT
         SPECULAR_MAP_FILENAME = "obj/autumn/TEX_autumn_body_spec.tga"
+        AO_MAP_FILENAME = "obj/autumn/TEX_autumn_body_ao.tga"
         OUTPUT_FILENAME = "renders/out.png"
     elif MODEL_PROP_SET == 1:
+        OBJ_FILENAME = "obj/autumn/autumn.obj"
+        DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.tga"
+        NORMAL_MAP_FILENAME = "obj/autumn/TEX_autumn_body_normals_wrld.tga"
+        NORMAL_MAP_TYPE = NormalMapType.GLOBAL
+        SPECULAR_MAP_FILENAME = "obj/autumn/TEX_autumn_body_spec.tga"
+        AO_MAP_FILENAME = "obj/autumn/TEX_autumn_body_ao.tga"
+        OUTPUT_FILENAME = "renders/out.png"
+    elif MODEL_PROP_SET == 2:
         OBJ_FILENAME = "obj/head/head.obj"
         DIFFUSE_FILENAME = "obj/head/head_diffuse.tga"
         NORMAL_MAP_FILENAME = "obj/head/head_nm_tangent.tga"
@@ -50,7 +59,7 @@ if __name__ == "__main__":
     image = TinyImage(w, h)
 
     # View property selection
-    VIEW_PROP_SET = 1
+    VIEW_PROP_SET = 0
     if VIEW_PROP_SET == 0:
         EYE = Vector3D(0, 0, 4) # Lookat camera 'EYE' position
         CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
@@ -68,7 +77,7 @@ if __name__ == "__main__":
         SCALE = .8 # Viewport scaling
 
     # Light property
-    LIGHT_DIR = Vector3D(-1, 1, 1).normalize()
+    LIGHT_DIR = Vector3D(1, 0, 0).normalize()
 
     print("Reading modeldata ...")
     mdl = ModelStorage(object_name = "autumn", obj_filename=OBJ_FILENAME,
