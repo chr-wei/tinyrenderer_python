@@ -9,7 +9,7 @@ Make sure to have python3 running and the following libs are installed:
 
 For the general idea please visit [https://github.com/ssloy/tinyrenderer](https://github.com/ssloy/tinyrenderer)
 
-This fork is intended to be a starting point of teaching programming in python3 to everyone interested in programming.
+This fork is intended to be a starting point of teaching programming in python3 to everyone as I consider the content to be tough but motivational for beginners.
 With this in mind I tried to follow ssloys tutorial closely and chose some guidelines:
 
 1. Simplicity over perfection
