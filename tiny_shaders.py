@@ -536,56 +536,89 @@ class AmbientOcclusionShader(gl.Shader):
         return vert
 
     def fragment(self, bary: Barycentric):
-        (x_sc, y_sc, _) = self.varying_vert * bary // 1
-
-        summed_ang = 0
-        for ray_angle in get_ray_angles(self.ray_num, randomized = True):
-            max_elevation = max_elevation_angle(self.uniform_precalc_zbuffer,
-                                self.uniform_zbuffer_width, self.uniform_zbuffer_height,
-                                Point2D(x_sc, y_sc),
-                                Vector2D(math.cos(ray_angle), math.sin(ray_angle)), 
-                                self.sweep_incr_fact)
-
-            summed_ang = summed_ang + (math.pi / 2 - max_elevation)
-
-        ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
-        ao_intensity = ao_intensity ** 5
-
         p_uv = PointUV(self.varying_uv * bary)
-        color = self.mdl.get_diffuse_color(p_uv)
-        color = color * ao_intensity // 1
+
+        if self.mdl.ao_map is None:
+            (x_sc, y_sc, _) = self.varying_vert * bary // 1
+
+            summed_ang = 0
+            for ray_angle in self.get_ray_angles(randomized = True):
+                max_elevation = self.max_elevation_angle(
+                                    Point2D(x_sc, y_sc),
+                                    Vector2D(math.cos(ray_angle), math.sin(ray_angle)), 
+                                    self.sweep_incr_fact)
+
+                summed_ang = summed_ang + (math.pi / 2 - max_elevation)
+
+            ao_intensity = summed_ang / (math.pi / 2 * self.ray_num)
+            ao_intensity = ao_intensity ** 5
+
+        else:
+            ao_intensity = self.mdl.get_ao_intensity_from_map(p_uv)
+
+        color = Vector3D(255,255,255) * ao_intensity // 1
 
         return (False, color)
 
-def max_elevation_angle(zbuffer: list, zbuf_width: float, zbuf_height: float,
-                        pt_amb: Point2D, sweep_dir: Vector2D, sweep_incr_fact: float):
-    """Returns max elevation angle ray-casted from starting point pt_amb."""
+    def max_elevation_angle(self, pt_amb: Point2D, sweep_dir: Vector2D, sweep_incr_fact: float):
+        """Returns max elevation angle ray-casted from starting point pt_amb."""
 
-    pt_amb_z = zbuffer[pt_amb.x][pt_amb.y]
-    sweep = Vector2D(pt_amb)
-    if abs(sweep_dir.x) > abs(sweep_dir.y):
-        max_sweep_comp = abs(sweep_dir.x)
-    else:
-        max_sweep_comp = abs(sweep_dir.y)
-    sweep_delta = 1.0 / max_sweep_comp * sweep_dir
-    max_tan = 0
-    while True:
-        z_height = zbuffer[int(sweep.x)][int(sweep.y)]
-        if z_height > pt_amb_z:
-            elevation = z_height - pt_amb_z
-            tan_val = elevation / sweep.abs()
-            max_tan = max(tan_val, max_tan)
-        sweep_delta *= sweep_incr_fact
-        sweep += sweep_delta
-        if not 0 <= sweep.x < (zbuf_width) or \
-           not 0 <= sweep.y < (zbuf_height):
-            break
-    return math.atan(max_tan)
+        pt_amb_z = self.uniform_precalc_zbuffer[pt_amb.x][pt_amb.y]
+        sweep = Vector2D(pt_amb)
+        if abs(sweep_dir.x) > abs(sweep_dir.y):
+            max_sweep_comp = abs(sweep_dir.x)
+        else:
+            max_sweep_comp = abs(sweep_dir.y)
+        sweep_delta = 1.0 / max_sweep_comp * sweep_dir
+        max_tan = 0
+        while True:
+            z_height = self.uniform_precalc_zbuffer[int(sweep.x)][int(sweep.y)]
+            if z_height > pt_amb_z:
+                elevation = z_height - pt_amb_z
+                tan_val = elevation / sweep.abs()
+                max_tan = max(tan_val, max_tan)
+            sweep_delta *= sweep_incr_fact
+            sweep += sweep_delta
+            if not 0 <= sweep.x < (self.uniform_zbuffer_width) or \
+            not 0 <= sweep.y < (self.uniform_zbuffer_height):
+                break
+        return math.atan(max_tan)
 
-def get_ray_angles(ray_num, randomized: bool = True):
-    """Return randomized or equal-spaced rays in between 0 and 2 * pi
-       for a given count of rays."""
-    if randomized:
-        return [random.uniform(0, 2 * math.pi) for ray in range(ray_num)]
+    def get_ray_angles(self, randomized: bool = True):
+        """Return randomized or equal-spaced rays in between 0 and 2 * pi
+        for a given count of rays."""
+        if randomized:
+            return [random.uniform(0, 2 * math.pi) for ray in range(self.ray_num)]
 
-    return [2 * math.pi * ray / ray_num for ray in range(ray_num)]
+        return [2 * math.pi * ray / self.ray_num for ray in range(self.ray_num)]
+
+
+class AmbientOcclusionMapShader(gl.Shader):
+    """Shader used to apply ambient occlusion from ao map."""
+    mdl: ModelStorage
+
+    uniform_M: Matrix4D
+    varying_uv = MatrixUV(6*[0])
+
+    def __init__(self, mdl, M):
+        self.mdl = mdl
+        self.uniform_M = M # pylint: disable=invalid-name
+
+    def vertex(self, face_idx: int, vert_idx: int):
+        vert = self.mdl.get_vertex(face_idx, vert_idx) # Read the vertex
+
+        self.varying_uv = \
+            self.varying_uv.set_col(vert_idx, self.mdl.get_uv_map_point(face_idx, vert_idx))
+
+        return transform_vertex_to_screen(vert, self.uniform_M)
+
+    def fragment(self, bary: Barycentric):
+        p_uv = PointUV(self.varying_uv * bary)
+        ao_intensity = self.mdl.get_ao_intensity_from_map(p_uv)
+
+        color = Vector3D(255,255,255) * ao_intensity // 1
+
+        return (False, color)
+
+class TinyShader(gl.Shader):
+    pass
