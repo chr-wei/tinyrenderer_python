@@ -28,7 +28,7 @@ After finishing the fork I am going to be working on course material and structu
 ![Rendered image with shadows and specular lighting](https://github.com/rap1ide/tinyrenderer_python/blob/master/docs/images/shadow_shade.png?raw=true)
 
 ### Rendered wire mesh
-![Rendered wire mesh](https://github.com/rap1ide/tinyrenderer_python/blob/master/docs/images/e04_autumn_mesh.png =200x)
+![Rendered wire mesh](https://github.com/rap1ide/tinyrenderer_python/blob/master/docs/images/e04_autumn_mesh.png?raw = true | width=100)
 
 ### Rendered randomly colored filled mesh triangles
 ![Randomly colored filled mesh triangles](https://github.com/rap1ide/tinyrenderer_python/blob/master/docs/images/e06_autumn_filled.png?raw=true)
