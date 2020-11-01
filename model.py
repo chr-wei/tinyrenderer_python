@@ -143,11 +143,12 @@ class ModelStorage():
     normal_map_type = NormalMapType.GLOBAL
     normal_map = None
     specular_map = None
+    ao_map = None
 
     def __init__(self, object_name: str = None, obj_filename: str = None,
                  diffuse_map_filename: str = None,
                  normal_map_filename: str = None, normal_map_type = NormalMapType.GLOBAL,
-                 specular_map_filename:str = None):
+                 specular_map_filename:str = None, ao_map_filename:str = None):
 
         self.object_name = object_name
         self.face_id_data = get_model_face_ids(obj_filename)
@@ -170,6 +171,11 @@ class ModelStorage():
         if not specular_map_filename is None:
             self.specular_map = TinyImage()
             self.specular_map.load_image(specular_map_filename)
+
+        # Ambient occlusion map
+        if not ao_map_filename is None:
+            self.ao_map = TinyImage()
+            self.ao_map.load_image(ao_map_filename)
 
     def get_normal(self, face_idx, face_vertex_idx):
         """Returns face vertex normal."""
@@ -207,6 +213,15 @@ class ModelStorage():
         if comp is tuple:
             comp = comp[0]
         return comp
+
+    def get_ao_intensity_from_map(self, pnt: PointUV):
+        """Returns ao_intensity from ao map."""
+        # Make sure to only use GRAY component
+        comp = self.ao_map.get(int(pnt.u * self.ao_map.get_width()),
+                                     int(pnt.v * self.ao_map.get_height()))
+        if comp is tuple:
+            comp = comp[0]
+        return comp / 255.0
 
     def get_vertex_count(self):
         """Returns count of model vertices."""
