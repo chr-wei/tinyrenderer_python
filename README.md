@@ -17,7 +17,6 @@ With this in mind I tried to follow ssloys tutorial closely and chose some guide
 
 To accomplish these goals I included a special linear algebra module `geom.py` instead of using `numpy`. 
 Numpy is undoubtly more universal and elaborated but harder to read for beginners.
-
 The `geom.py` module contains some basic vector and matrix classes and supports indexing via '.x', '.y' and '.z' notation based on namedtuples.
 
 After finishing the fork I am going to be working on course material and structured lessons to roll out this exciting course of 3D animation and programming sometime in the future. To motivate students even more I plan providing some short Blender tutorials on how to prepare custom models for this renderer.
