@@ -9,11 +9,12 @@ from model import ModelStorage, NormalMapType
 from tiny_shaders import FlatShader, GouraudShader, GouraudShaderSegregated, \
                          DiffuseGouraudShader, GlobalNormalmapShader, SpecularmapShader, \
                          TangentNormalmapShader, DepthShader, SpecularShadowShader, \
-                         ZShader, AmbientOcclusionShader, AmbientOcclusionMapShader
+                         ZShader, AmbientOcclusionShader, AmbientOcclusionMapShader, \
+                         TinyShader
 
 if __name__ == "__main__":
     # Model property selection
-    MODEL_PROP_SET = 0
+    MODEL_PROP_SET = 1
     if MODEL_PROP_SET == 0:
         OBJ_FILENAME = "obj/autumn/autumn.obj"
         DIFFUSE_FILENAME = "obj/autumn/TEX_autumn_body_color.tga"
@@ -70,6 +71,11 @@ if __name__ == "__main__":
         CENTER = Vector3D(0, 0, 0)
         UP = Vector3D(0, 1, 0)
         SCALE = .8
+    elif VIEW_PROP_SET == 2:
+        EYE = Vector3D(0, 2, 0)
+        CENTER = Vector3D(0, 0, 0)
+        UP = Vector3D(1, 0, 0)
+        SCALE = .8
     else:
         EYE = Vector3D(4, 0, 0) # Lookat camera 'EYE' position
         CENTER = Vector3D(0, 0, 0) # Lookat 'CENTER'. 'EYE' looks at CENTER
@@ -123,7 +129,7 @@ if __name__ == "__main__":
     PREPARE_AO_SHADER = False
     PREPARE_SHADOW_SHADER = False
 
-    SHADER_PROP_SET = 2
+    SHADER_PROP_SET = 10
     if SHADER_PROP_SET == 0:
         shader = FlatShader(mdl, LIGHT_DIR, M_sc)
     elif SHADER_PROP_SET == 1:
@@ -146,6 +152,9 @@ if __name__ == "__main__":
         shader = AmbientOcclusionShader(mdl, M_sc, None, w, h)
     elif SHADER_PROP_SET == 9:
         shader = AmbientOcclusionMapShader(mdl, M_sc)
+    elif SHADER_PROP_SET == 10:
+        PREPARE_SHADOW_SHADER = True
+        shader = TinyShader(mdl, LIGHT_DIR, M_pe, M_sc, M_pe_IT, None, None)
     else:
         raise ValueError
 

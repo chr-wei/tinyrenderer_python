@@ -17,7 +17,7 @@ class TinyImage:
 
     def __init__(self, width = None, height = None):
         if not width is None and not height is None:
-            self._im = Image.new(size=(width, height), mode="RGB")
+            self._im = Image.new(size=(width, height), mode="RGB", color="lightgray")
             self._draw = ImageDraw.Draw(self._im)
 
     def load_image(self, ipath):
