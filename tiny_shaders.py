@@ -82,7 +82,7 @@ class TinyShader(gl.Shader):
         p_shadow = transform_vertex_to_screen(v_bary, self.uniform_M_sb)
         z_lit = self.shadow_buffer[p_shadow.x][p_shadow.y]
 
-        shadowed_intensity = .3 if p_shadow.z + .02 * 255 < z_lit else 1.0
+        shadowed_intensity = .7 if p_shadow.z + .02 * 255 < z_lit else 1.0
 
         n_global = self.mdl.get_normal_from_map(p_uv)
         n_local = transform_3D4D3D(n_global, Vector4DType.DIRECTION, \
@@ -103,11 +103,10 @@ class TinyShader(gl.Shader):
         # Get diffuse color and apply ambient occlusion intensity
         ao_intensity = self.mdl.get_ao_intensity_from_map(p_uv)
         color = self.mdl.get_diffuse_color(p_uv)
-        color *= ao_intensity
 
         # Combine base, diffuse and specular intensity
-        color = 20 * Vector3D(1,1,1) + \
-            color * shadowed_intensity * (1.8 * diffuse_intensity + .6 * specular_intensity)
+        color = 10 * Vector3D(1,1,1) + \
+            color * shadowed_intensity * (2.8 * (.7 * diffuse_intensity + .3 * ao_intensity) + .6 * specular_intensity)
         color = comp_min(Vector3D(255, 255, 255), color) // 1
 
         # Do not discard pixel and return color
